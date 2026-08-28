@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	_ "modernc.org/sqlite" // pure Go: no cgo, so cross-compilation stays one command
 
@@ -257,32 +258,172 @@ type Totals struct {
 	Days   int   // distinct days with data
 }
 
+// Filter narrows a report to a window and optionally one vendor.
+type Filter struct {
+	From   string
+	To     string
+	Vendor string // empty means every vendor
+}
+
+func (f Filter) args() []any {
+	return []any{f.From, f.To, f.From, f.To, f.Vendor, f.Vendor}
+}
+
+// vendorClause is appended inside the latest CTE's consumers. The vendor is a
+// bound parameter, never interpolated.
+const vendorClause = ` WHERE (? = '' OR vendor = ?)`
+
 // Totals sums the latest revision of every fact in the window.
 //
 // Only the highest revision of each fact counts. Summing every revision would
 // double-count every day a vendor has ever restated, which is the kind of error
 // that is invisible until someone reconciles against an invoice.
-func (d *DB) Totals(from, to string) (Totals, error) {
+func (d *DB) Totals(f Filter) (Totals, error) {
 	var t Totals
-	err := d.sql.QueryRow(`
-		WITH latest AS (
-		  SELECT f.* FROM usage_fact f
-		  JOIN (
-		    SELECT vendor, day, workspace_ref, principal_ref, model_ref, max(revision) AS revision
-		    FROM usage_fact WHERE day BETWEEN ? AND ?
-		    GROUP BY vendor, day, workspace_ref, principal_ref, model_ref
-		  ) m ON f.vendor=m.vendor AND f.day=m.day AND f.workspace_ref=m.workspace_ref
-		     AND f.principal_ref=m.principal_ref AND f.model_ref=m.model_ref
-		     AND f.revision=m.revision
-		  WHERE f.day BETWEEN ? AND ?
-		)
+	err := d.sql.QueryRow(latestCTE+`
 		SELECT
 		  COALESCE(sum(CASE WHEN amount_basis <> 'unknown' THEN amount_micros ELSE 0 END), 0),
 		  count(*),
 		  COALESCE(sum(CASE WHEN amount_basis <> 'unknown' THEN 1 ELSE 0 END), 0),
 		  count(DISTINCT day)
-		FROM latest`,
-		from, to, from, to,
+		FROM latest`+vendorClause,
+		f.args()...,
 	).Scan(&t.Micros, &t.Facts, &t.Priced, &t.Days)
 	return t, err
+}
+
+// Group is one row of a grouped report.
+type Group struct {
+	Key    string // vendor, model, key, project or day
+	Micros int64
+	Facts  int
+	Priced int
+	Units  int64 // input + output + cached + other
+	Input  int64
+	Output int64
+	Cached int64
+}
+
+// latestCTE selects one row per fact, at its highest revision.
+//
+// Every grouped query goes through this. Summing all revisions would
+// double-count every day a vendor has ever restated — an error invisible until
+// someone reconciles against an invoice.
+const latestCTE = `
+WITH latest AS (
+  SELECT f.* FROM usage_fact f
+  JOIN (
+    SELECT vendor, day, workspace_ref, principal_ref, model_ref, max(revision) AS revision
+    FROM usage_fact WHERE day BETWEEN ? AND ?
+    GROUP BY vendor, day, workspace_ref, principal_ref, model_ref
+  ) m ON f.vendor=m.vendor AND f.day=m.day AND f.workspace_ref=m.workspace_ref
+     AND f.principal_ref=m.principal_ref AND f.model_ref=m.model_ref
+     AND f.revision=m.revision
+  WHERE f.day BETWEEN ? AND ?
+)`
+
+// GroupBy is a dimension the report can break spend down by.
+type GroupBy string
+
+const (
+	ByVendor  GroupBy = "vendor"
+	ByModel   GroupBy = "model"
+	ByKey     GroupBy = "key"
+	ByProject GroupBy = "project"
+	ByDay     GroupBy = "day"
+)
+
+// column maps a dimension to its database column. The mapping is a closed set
+// rather than string interpolation, so no caller can reach the query text.
+func (g GroupBy) column() (string, bool) {
+	switch g {
+	case ByVendor:
+		return "vendor", true
+	case ByModel:
+		return "model_ref", true
+	case ByKey:
+		return "principal_ref", true
+	case ByProject:
+		return "workspace_ref", true
+	case ByDay:
+		return "day", true
+	}
+	return "", false
+}
+
+// Valid reports whether this is a dimension aispend knows.
+func (g GroupBy) Valid() bool { _, ok := g.column(); return ok }
+
+// GroupByNames lists every dimension, for error messages and help text.
+func GroupByNames() []string {
+	return []string{string(ByVendor), string(ByModel), string(ByKey), string(ByProject), string(ByDay)}
+}
+
+// GroupBy aggregates the window along one dimension.
+//
+// Rows come back ordered by spend descending — people want the biggest line
+// first, every time — except for a day breakdown, which is a time series and is
+// returned chronologically. A time series sorted by size is not a time series.
+func (d *DB) GroupBy(g GroupBy, f Filter) ([]Group, error) {
+	col, ok := g.column()
+	if !ok {
+		return nil, fmt.Errorf("unknown grouping %q (try: %s)", g, strings.Join(GroupByNames(), ", "))
+	}
+
+	order := "micros DESC, key ASC"
+	if g == ByDay {
+		order = "key ASC"
+	}
+
+	rows, err := d.sql.Query(latestCTE+`
+		SELECT `+col+` AS key,
+		  COALESCE(sum(CASE WHEN amount_basis <> 'unknown' THEN amount_micros ELSE 0 END), 0) AS micros,
+		  count(*),
+		  COALESCE(sum(CASE WHEN amount_basis <> 'unknown' THEN 1 ELSE 0 END), 0),
+		  COALESCE(sum(input_units + output_units + cached_units + cache_write_units + other_units), 0),
+		  COALESCE(sum(input_units), 0),
+		  COALESCE(sum(output_units), 0),
+		  COALESCE(sum(cached_units), 0)
+		FROM latest`+vendorClause+` GROUP BY `+col+` ORDER BY `+order,
+		f.args()...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Group
+	for rows.Next() {
+		var g Group
+		if err := rows.Scan(&g.Key, &g.Micros, &g.Facts, &g.Priced,
+			&g.Units, &g.Input, &g.Output, &g.Cached); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+// DailyTotals returns spend per day for one vendor, oldest first, with zero
+// rows for days that have no data. Sparklines need a dense series: a gap
+// silently redrawn as a shorter line would misreport the shape.
+func (d *DB) DailyTotals(f Filter) (map[string]int64, error) {
+	rows, err := d.sql.Query(latestCTE+`
+		SELECT day, COALESCE(sum(CASE WHEN amount_basis <> 'unknown' THEN amount_micros ELSE 0 END), 0)
+		FROM latest`+vendorClause+` GROUP BY day`,
+		f.args()...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]int64{}
+	for rows.Next() {
+		var day string
+		var micros int64
+		if err := rows.Scan(&day, &micros); err != nil {
+			return nil, err
+		}
+		out[day] = micros
+	}
+	return out, rows.Err()
 }

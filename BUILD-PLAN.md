@@ -31,8 +31,10 @@ rewrite of history.
 - [x] **Run 11** — persist through the sink, `sync_state`, restatement revisions
 - [x] **Run 12** — pagination + resume, collector runtime (retry, rate limit, isolation), `sync`
 - [x] **Run 13** — `fmtutil`, `usage`, the headline number, and the generated footer
-- [ ] **Run 14** — `BY VENDOR` table  ← next
-- [ ] Runs 15–26 below
+- [x] **Run 14** — `BY VENDOR` table, grouping queries, `--vendor`, `--detail`
+- [x] **Run 15** — Anthropic collector, schema v2 for cache-write tokens
+- [ ] **Run 16** — price book, `amount_basis`, Basis footer  ← next
+- [ ] Runs 17–26 below
 
 ---
 
@@ -856,7 +858,7 @@ where it would be forgotten.
 
 ---
 
-## Run 14 — `BY VENDOR`
+## Run 14 — `BY VENDOR` ✅
 
 **Build:** the vendor table — descending by cost always, share percentages paired with absolutes, a
 totals row that visibly reconciles, remainder line for long lists.
@@ -885,7 +887,7 @@ arithmetic closed at every level of detail.
 
 ---
 
-## Run 15 — Anthropic collector
+## Run 15 — Anthropic collector ✅
 
 **Needs:** `ANTHROPIC_ADMIN_KEY`.
 
@@ -908,8 +910,11 @@ AISPEND_HOME=/tmp/as7 ./aispend usage
    The design §6.1 progress block appears while it works — `✓ openai  3 projects · 28 keys  1.2s`,
    one line per vendor with its own timing — and is suppressed when stdout is not a TTY.
 4. Spot-check two Anthropic facts against their console — they agree.
-5. Cached tokens land in `cached_units`, not folded into `input_units`. (Anthropic's cache discount is
-   steep; folding them produces an error that *grows as the customer optimises*.)
+5. **Three input classes, three columns.** Anthropic reports uncached input, cache *writes* (priced at a
+   premium) and cache *reads* (priced at a discount). Schema v1 had one `cached_units`, so run 15 adds
+   migration v2 with `cache_write_units`. Combining any two moves the number in opposite directions and
+   the errors do not cancel — this is the design's cached-tokens rule, discovered to have one more case
+   than the design anticipated.
 6. One vendor failing does not abort the other — kill the Anthropic key and openai still reports, with a
    clear per-vendor error.
 

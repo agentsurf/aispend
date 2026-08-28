@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,15 +19,15 @@ func open(t *testing.T) (*DB, string) {
 	return db, path
 }
 
-func TestOpenCreatesSchemaV1(t *testing.T) {
+func TestOpenCreatesTheCurrentSchema(t *testing.T) {
 	db, _ := open(t)
 
 	h, err := db.Health()
 	if err != nil {
 		t.Fatalf("Health: %v", err)
 	}
-	if h.SchemaVersion != 1 {
-		t.Errorf("schema = v%d, want v1", h.SchemaVersion)
+	if h.SchemaVersion != schemaVersion() {
+		t.Errorf("schema = v%d, want v%d", h.SchemaVersion, schemaVersion())
 	}
 	if h.Facts != 0 || h.Connections != 0 {
 		t.Errorf("fresh database is not empty: %+v", h)
@@ -268,7 +269,7 @@ func TestTotalsCountOnlyTheLatestRevision(t *testing.T) {
 	insertFact(t, db, "2026-08-27", 1, 10_000_000, "vendor_reported")
 	insertFact(t, db, "2026-08-27", 2, 25_000_000, "vendor_reported") // restated
 
-	got, err := db.Totals("2026-08-01", "2026-08-31")
+	got, err := db.Totals(Filter{From: "2026-08-01", To: "2026-08-31"})
 	if err != nil {
 		t.Fatalf("Totals: %v", err)
 	}
@@ -288,7 +289,7 @@ func TestTotalsSeparateUnknownFromZero(t *testing.T) {
 	insertFact(t, db, "2026-08-26", 1, 0, "unknown")
 	insertFact(t, db, "2026-08-27", 1, 5_000_000, "vendor_reported")
 
-	got, _ := db.Totals("2026-08-01", "2026-08-31")
+	got, _ := db.Totals(Filter{From: "2026-08-01", To: "2026-08-31"})
 	if got.Facts != 2 {
 		t.Errorf("Facts = %d, want 2", got.Facts)
 	}
@@ -309,8 +310,84 @@ func TestTotalsRespectTheWindow(t *testing.T) {
 	insertFact(t, db, "2026-07-01", 1, 9_000_000, "vendor_reported")
 	insertFact(t, db, "2026-08-27", 1, 5_000_000, "vendor_reported")
 
-	got, _ := db.Totals("2026-08-01", "2026-08-31")
+	got, _ := db.Totals(Filter{From: "2026-08-01", To: "2026-08-31"})
 	if got.Micros != 5_000_000 {
 		t.Errorf("Micros = %d — a fact outside the window was counted", got.Micros)
+	}
+}
+
+// Every migration must apply cleanly on top of the previous schema, not only on
+// a fresh database — an installed copy upgrades through them in order, carrying
+// its data with it.
+func TestMigrationsUpgradeAnExistingDatabase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "aispend.db")
+
+	// Build a genuine v1 database: migration 1 only, recorded as version 1.
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	if _, err := raw.Exec(migrations[0].stmts); err != nil {
+		t.Fatalf("applying v1: %v", err)
+	}
+	if _, err := raw.Exec("PRAGMA user_version = 1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`
+		INSERT INTO usage_fact (fact_id, vendor, day, unit_kind, amount_micros, amount_basis, collected_at)
+		VALUES ('x','openai','2026-08-27','token',41200000,'vendor_reported',0)`); err != nil {
+		t.Fatalf("insert into v1: %v", err)
+	}
+	raw.Close()
+
+	// Opening it must carry it forward without losing the row.
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("upgrading a v1 database: %v", err)
+	}
+	defer db.Close()
+
+	h, err := db.Health()
+	if err != nil {
+		t.Fatalf("Health: %v", err)
+	}
+	if h.SchemaVersion != schemaVersion() {
+		t.Errorf("schema = v%d after upgrade, want v%d", h.SchemaVersion, schemaVersion())
+	}
+	if h.Facts != 1 {
+		t.Errorf("facts = %d after upgrade — the existing row was lost", h.Facts)
+	}
+
+	// The added column exists and defaults sensibly for the pre-existing row.
+	var write int64
+	if err := db.SQL().QueryRow("SELECT cache_write_units FROM usage_fact").Scan(&write); err != nil {
+		t.Fatalf("new column missing after upgrade: %v", err)
+	}
+	if write != 0 {
+		t.Errorf("cache_write_units = %d for a row written before the column existed, want 0", write)
+	}
+}
+
+// The three input classes are priced differently — uncached, cache writes at a
+// premium, cache reads at a discount — so each needs its own column. Combining
+// any two moves the number in a direction that cannot be corrected later.
+func TestCacheWriteUnitsAreStoredSeparately(t *testing.T) {
+	db, _ := open(t)
+
+	if _, err := db.SQL().Exec(`
+		INSERT INTO usage_fact (fact_id, vendor, day, model_ref, unit_kind,
+			input_units, cached_units, cache_write_units, amount_micros, amount_basis, collected_at)
+		VALUES ('x','anthropic','2026-08-27','claude-opus-5','token',1500,200,1500,0,'unknown',0)`); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	var in, read, write int64
+	if err := db.SQL().QueryRow(
+		"SELECT input_units, cached_units, cache_write_units FROM usage_fact").
+		Scan(&in, &read, &write); err != nil {
+		t.Fatal(err)
+	}
+	if in != 1500 || read != 200 || write != 1500 {
+		t.Errorf("got in=%d read=%d write=%d; the three classes were not kept apart", in, read, write)
 	}
 }

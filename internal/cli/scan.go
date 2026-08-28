@@ -28,6 +28,8 @@ var (
 	flagSince   string
 	flagDryRun  bool
 	flagKeepRaw bool
+	flagDetail  bool
+	flagVendor  string
 )
 
 func newScanCmd() *cobra.Command {
@@ -223,6 +225,18 @@ func runScan(cmd *cobra.Command, w io.Writer, caps ui.Caps, r timerange.Range, q
 		}
 		collector, ok := registry.Get(v.ID)
 		if !ok {
+			// A vendor in the catalog with a credential set but no collector
+			// yet must say so. Skipping it silently would let a connected
+			// OpenRouter vanish from the report with no explanation, which
+			// reads as "aispend found no OpenRouter spend".
+			vendorID := v.ID
+			jobs = append(jobs, collect.Job{
+				Vendor: vendorID,
+				Count:  func() int { return 0 },
+				Run: func(context.Context) (string, error) {
+					return "", fmt.Errorf("%s: %w", vendorID, collect.ErrNotImplemented)
+				},
+			})
 			continue
 		}
 
@@ -357,12 +371,16 @@ func plural(n int, one, many string) string {
 func factLine(f fact.Fact, caps ui.Caps) string {
 	parts := []string{
 		"fact ", f.Vendor, f.Day,
-		orDash(f.WorkspaceRef, caps), orDash(f.PrincipalRef, caps), orDash(f.ModelRef, caps),
+		orDash(shortRef(f.WorkspaceRef), caps), orDash(shortRef(f.PrincipalRef), caps),
+		orDash(f.ModelRef, caps),
 		"in=" + fmtutil.Tokens(f.InputUnits),
 		"out=" + fmtutil.Tokens(f.OutputUnits),
 	}
 	if f.CachedUnits > 0 {
-		parts = append(parts, "cached="+fmtutil.Tokens(f.CachedUnits))
+		parts = append(parts, "cacheread="+fmtutil.Tokens(f.CachedUnits))
+	}
+	if f.CacheWriteUnits > 0 {
+		parts = append(parts, "cachewrite="+fmtutil.Tokens(f.CacheWriteUnits))
 	}
 	if f.OtherUnits > 0 {
 		parts = append(parts, "other="+fmtutil.Tokens(f.OtherUnits))
@@ -371,6 +389,18 @@ func factLine(f fact.Fact, caps ui.Caps) string {
 		fmtutil.MoneyOrUnknown(f.AmountMicros, f.AmountBasis != fact.BasisUnknown),
 		string(f.AmountBasis))
 	return strings.Join(parts, "  ")
+}
+
+// shortRef trims a vendor identifier to something a terminal line can hold.
+// These are opaque ids, not secrets, so the tail is kept — it is what
+// distinguishes two keys from each other at a glance.
+func shortRef(s string) string {
+	const max = 16
+	if len([]rune(s)) <= max {
+		return s
+	}
+	r := []rune(s)
+	return string(r[:6]) + "…" + string(r[len(r)-6:])
 }
 
 func orDash(s string, caps ui.Caps) string {

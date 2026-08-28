@@ -3,10 +3,13 @@ package collect
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -481,16 +484,29 @@ func TestOpenAICollectGivesEachRowADistinctIdentity(t *testing.T) {
 // "We have not built this" and "your credential was rejected" call for
 // different reactions, so they must be distinguishable by callers rather than
 // only by reading the message.
-func TestUnimplementedCollectorIsDistinguishable(t *testing.T) {
-	_, err := (&anthropic{}).Collect(context.Background(), cred.Credential{},
-		window(t, "1d"), "", EmitterFunc(func(fact.Fact) error { return nil }))
+func TestUnimplementedIsDistinguishableFromAFailure(t *testing.T) {
+	err := fmt.Errorf("openrouter: %w", ErrNotImplemented)
 
 	if !errors.Is(err, ErrNotImplemented) {
-		t.Errorf("Collect error = %v, want it to wrap ErrNotImplemented", err)
+		t.Errorf("error = %v, want it to wrap ErrNotImplemented", err)
 	}
 	var ve *VendorError
 	if errors.As(err, &ve) {
 		t.Error("an unimplemented collector reported itself as a vendor failure")
+	}
+}
+
+// A catalog vendor with no collector must still appear in the registry's view
+// of the world as absent, not as a vendor with no spend.
+func TestRegistryOmitsVendorsWithoutCollectors(t *testing.T) {
+	r := New(http.DefaultClient)
+	if _, ok := r.Get("openrouter"); ok {
+		t.Error("openrouter has a collector; update this test when it lands")
+	}
+	for _, v := range r.Vendors() {
+		if v == "openrouter" {
+			t.Error("Vendors() lists a vendor with no collector")
+		}
 	}
 }
 
@@ -620,5 +636,160 @@ func TestInterruptedCollectKeepsCompletedPages(t *testing.T) {
 	}
 	if len(rec.pages) != 1 || rec.pages[0] != "page_two" {
 		t.Errorf("page boundaries = %v, want the first page recorded", rec.pages)
+	}
+}
+
+const anthropicBucketBody = `{"data":[{"starting_at":"2026-08-27T00:00:00Z",
+	"ending_at":"2026-08-28T00:00:00Z","results":[
+	{"api_key_id":"apikey_01","workspace_id":"wrkspc_01","model":"claude-opus-4-6",
+	 "uncached_input_tokens":420880,"cache_read_input_tokens":1104220,
+	 "cache_creation":{"ephemeral_1h_input_tokens":220000,"ephemeral_5m_input_tokens":480000},
+	 "output_tokens":190432,"server_tool_use":{"web_search_requests":128}},
+	{"api_key_id":null,"workspace_id":null,"model":"claude-sonnet-4-6",
+	 "uncached_input_tokens":988120,"cache_read_input_tokens":0,
+	 "cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},
+	 "output_tokens":61044,"server_tool_use":{"web_search_requests":0}}]}],
+	"has_more":false,"next_page":null}`
+
+func TestAnthropicCollectMapsAUsageRow(t *testing.T) {
+	client, sent := serve(t, 200, anthropicBucketBody)
+
+	var got []fact.Fact
+	_, err := (&anthropic{http: client, limiter: newLimiter(1000)}).Collect(
+		context.Background(), cred.New("anthropic", cred.SourceEnv, "K", testKey),
+		window(t, "1d"), "", EmitterFunc(func(f fact.Fact) error { got = append(got, f); return nil }))
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d facts, want 2", len(got))
+	}
+
+	f := got[0]
+	if f.Day != "2026-08-27" {
+		t.Errorf("Day = %s", f.Day)
+	}
+	if f.ModelRef != "claude-opus-4-6" || f.InputUnits != 420880 || f.OutputUnits != 190432 {
+		t.Errorf("fact = %+v", f)
+	}
+	if sent.Get("anthropic-version") != "2023-06-01" {
+		t.Errorf("anthropic-version = %q", sent.Get("anthropic-version"))
+	}
+}
+
+// Anthropic reports three classes of input token with three different prices:
+// uncached, cache writes at a premium, cache reads at a discount. Combining any
+// two moves the number in a direction that cannot be corrected afterwards, and
+// the two errors do not cancel.
+func TestAnthropicKeepsCacheReadsAndWritesApart(t *testing.T) {
+	client, _ := serve(t, 200, anthropicBucketBody)
+
+	var f fact.Fact
+	(&anthropic{http: client, limiter: newLimiter(1000)}).Collect(
+		context.Background(), cred.New("anthropic", cred.SourceEnv, "K", testKey),
+		window(t, "1d"), "", EmitterFunc(func(got fact.Fact) error {
+			if f.Vendor == "" {
+				f = got
+			}
+			return nil
+		}))
+
+	if f.InputUnits != 420880 {
+		t.Errorf("InputUnits = %d, want the uncached count alone", f.InputUnits)
+	}
+	if f.CachedUnits != 1104220 {
+		t.Errorf("CachedUnits = %d, want the cache *reads*", f.CachedUnits)
+	}
+	if f.CacheWriteUnits != 700000 {
+		t.Errorf("CacheWriteUnits = %d, want both ephemeral buckets summed (700000)", f.CacheWriteUnits)
+	}
+	if f.InputUnits == 420880+1104220+700000 {
+		t.Error("the three input classes were folded into one")
+	}
+	if f.OtherUnits != 128 {
+		t.Errorf("OtherUnits = %d, want the server tool requests", f.OtherUnits)
+	}
+}
+
+// A null workspace_id means the default workspace, which has no id of its own;
+// a null api_key_id means Console usage. Both are legitimate rows, stored as
+// empty strings and rendered as an em dash — never dropped.
+func TestAnthropicHandlesNullDimensions(t *testing.T) {
+	client, _ := serve(t, 200, anthropicBucketBody)
+
+	var facts []fact.Fact
+	(&anthropic{http: client, limiter: newLimiter(1000)}).Collect(
+		context.Background(), cred.New("anthropic", cred.SourceEnv, "K", testKey),
+		window(t, "1d"), "", EmitterFunc(func(f fact.Fact) error { facts = append(facts, f); return nil }))
+
+	if len(facts) != 2 {
+		t.Fatalf("a row with null dimensions was dropped: got %d facts", len(facts))
+	}
+	second := facts[1]
+	if second.WorkspaceRef != "" || second.PrincipalRef != "" {
+		t.Errorf("null dimensions were not normalised to empty: %+v", second)
+	}
+	if second.ModelRef != "claude-sonnet-4-6" {
+		t.Errorf("ModelRef = %q", second.ModelRef)
+	}
+	// Distinct identity despite the empty dimensions, or re-collection would
+	// collapse it into the other row.
+	if facts[0].ID() == second.ID() {
+		t.Error("two different rows produced the same fact id")
+	}
+}
+
+// The default is 7 buckets, which would silently truncate a 30-day scan into a
+// week. limit is always sent.
+func TestAnthropicAlwaysSendsAnExplicitLimit(t *testing.T) {
+	var query url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.Query()
+		w.Write([]byte(`{"data":[],"has_more":false,"next_page":null}`))
+	}))
+	defer srv.Close()
+
+	client := srv.Client()
+	client.Transport = rewriteHost{base: client.Transport, to: strings.TrimPrefix(srv.URL, "http://")}
+
+	(&anthropic{http: client, limiter: newLimiter(1000)}).Collect(
+		context.Background(), cred.New("anthropic", cred.SourceEnv, "K", testKey),
+		window(t, "30d"), "", EmitterFunc(func(fact.Fact) error { return nil }))
+
+	if query.Get("limit") == "" {
+		t.Error("no limit sent; the vendor default of 7 would truncate a 30-day scan")
+	}
+	if query.Get("limit") != "30" {
+		t.Errorf("limit = %q, want 30", query.Get("limit"))
+	}
+	if query.Get("bucket_width") != "1d" {
+		t.Errorf("bucket_width = %q", query.Get("bucket_width"))
+	}
+	// RFC 3339, not unix seconds — the encoding differs from OpenAI's.
+	if !strings.Contains(query.Get("starting_at"), "T") {
+		t.Errorf("starting_at = %q, want RFC 3339", query.Get("starting_at"))
+	}
+}
+
+// A window longer than the vendor's per-response maximum must be capped rather
+// than rejected.
+func TestAnthropicCapsTheLimitAtTheVendorMaximum(t *testing.T) {
+	var query url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.Query()
+		w.Write([]byte(`{"data":[],"has_more":false,"next_page":null}`))
+	}))
+	defer srv.Close()
+
+	client := srv.Client()
+	client.Transport = rewriteHost{base: client.Transport, to: strings.TrimPrefix(srv.URL, "http://")}
+
+	(&anthropic{http: client, limiter: newLimiter(1000)}).Collect(
+		context.Background(), cred.New("anthropic", cred.SourceEnv, "K", testKey),
+		window(t, "90d"), "", EmitterFunc(func(fact.Fact) error { return nil }))
+
+	if query.Get("limit") != strconv.Itoa(anthropicMaxBuckets) {
+		t.Errorf("limit = %q for a 90-day window, want the capped %d",
+			query.Get("limit"), anthropicMaxBuckets)
 	}
 }

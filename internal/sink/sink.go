@@ -47,9 +47,9 @@ func NewSQLite(db *sql.DB) *SQLiteSink { return &SQLiteSink{db: db} }
 const insertFact = `
 INSERT INTO usage_fact (
   fact_id, vendor, day, workspace_ref, principal_ref, model_ref,
-  input_units, output_units, cached_units, other_units, unit_kind,
+  input_units, output_units, cached_units, cache_write_units, other_units, unit_kind,
   amount_micros, amount_basis, price_version, revision, collected_at
-) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT DO NOTHING`
 
 // Write inserts a batch in one transaction.
@@ -86,8 +86,8 @@ func (s *SQLiteSink) Write(ctx context.Context, facts []fact.Fact) error {
 	for _, f := range facts {
 		res, err := stmt.ExecContext(ctx,
 			f.ID(), f.Vendor, f.Day, f.WorkspaceRef, f.PrincipalRef, f.ModelRef,
-			f.InputUnits, f.OutputUnits, f.CachedUnits, f.OtherUnits, f.UnitKind,
-			f.AmountMicros, string(f.AmountBasis), f.PriceVersion, f.Revision,
+			f.InputUnits, f.OutputUnits, f.CachedUnits, f.CacheWriteUnits, f.OtherUnits,
+			f.UnitKind, f.AmountMicros, string(f.AmountBasis), f.PriceVersion, f.Revision,
 			f.CollectedAt.UTC().Unix(),
 		)
 		if err != nil {
@@ -125,22 +125,24 @@ func (s *SQLiteSink) Write(ctx context.Context, facts []fact.Fact) error {
 // differs reports whether the stored latest revision of this fact disagrees
 // with what the vendor is reporting now.
 func differs(ctx context.Context, tx *sql.Tx, f fact.Fact) (bool, error) {
-	var in, out, cached, other, amount int64
+	var in, out, cached, cacheWrite, other, amount int64
 	var basis string
 
 	err := tx.QueryRowContext(ctx, `
-		SELECT input_units, output_units, cached_units, other_units, amount_micros, amount_basis
+		SELECT input_units, output_units, cached_units, cache_write_units, other_units,
+		       amount_micros, amount_basis
 		FROM usage_fact
 		WHERE vendor=? AND day=? AND workspace_ref=? AND principal_ref=? AND model_ref=?
 		ORDER BY revision DESC LIMIT 1`,
 		f.Vendor, f.Day, f.WorkspaceRef, f.PrincipalRef, f.ModelRef,
-	).Scan(&in, &out, &cached, &other, &amount, &basis)
+	).Scan(&in, &out, &cached, &cacheWrite, &other, &amount, &basis)
 	if err != nil {
 		return false, fmt.Errorf("reading existing %s %s: %w", f.Vendor, f.Day, err)
 	}
 
 	return in != f.InputUnits || out != f.OutputUnits || cached != f.CachedUnits ||
-		other != f.OtherUnits || amount != f.AmountMicros || basis != string(f.AmountBasis), nil
+		cacheWrite != f.CacheWriteUnits || other != f.OtherUnits ||
+		amount != f.AmountMicros || basis != string(f.AmountBasis), nil
 }
 
 // insertRevision appends the restated fact as the next revision, leaving the
@@ -159,8 +161,8 @@ func insertRevision(ctx context.Context, tx *sql.Tx, f fact.Fact) error {
 
 	_, err := tx.ExecContext(ctx, insertFact,
 		f.ID(), f.Vendor, f.Day, f.WorkspaceRef, f.PrincipalRef, f.ModelRef,
-		f.InputUnits, f.OutputUnits, f.CachedUnits, f.OtherUnits, f.UnitKind,
-		f.AmountMicros, string(f.AmountBasis), f.PriceVersion, next,
+		f.InputUnits, f.OutputUnits, f.CachedUnits, f.CacheWriteUnits, f.OtherUnits,
+		f.UnitKind, f.AmountMicros, string(f.AmountBasis), f.PriceVersion, next,
 		f.CollectedAt.UTC().Unix())
 	return err
 }

@@ -72,6 +72,19 @@ CREATE TABLE sync_state (
 CREATE TABLE meta (k TEXT PRIMARY KEY, v TEXT NOT NULL) STRICT;
 `,
 	},
+	{
+		version: 2,
+		// Anthropic reports three classes of input token, not two: uncached,
+		// cache *writes* (priced at a premium over base input) and cache
+		// *reads* (priced at a steep discount). v1 had one cached_units column,
+		// which would have forced writes and reads into the same bucket and
+		// mispriced both — in opposite directions, so the errors would not even
+		// cancel.
+		//
+		// cached_units keeps its meaning: tokens read from cache. The new
+		// column is the writes.
+		stmts: `ALTER TABLE usage_fact ADD COLUMN cache_write_units INTEGER NOT NULL DEFAULT 0;`,
+	},
 }
 
 type migration struct {

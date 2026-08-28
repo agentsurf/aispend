@@ -25,13 +25,18 @@ type Fact struct {
 
 	InputUnits  int64 `json:"input_units"`
 	OutputUnits int64 `json:"output_units"`
-	// CachedUnits stays separate from InputUnits because cached tokens are
-	// priced at a steep discount. Folding them together produces a number wrong
-	// by a margin that grows as the customer optimises — exactly when they are
-	// checking your work.
-	CachedUnits int64  `json:"cached_units"`
-	OtherUnits  int64  `json:"other_units"` // seats, characters, images
-	UnitKind    string `json:"unit_kind"`   // token | character | seat_day | request
+	// CachedUnits is tokens *read* from cache, priced at a steep discount.
+	// Folding them into InputUnits produces a number wrong by a margin that
+	// grows as the customer optimises — exactly when they are checking your
+	// work.
+	CachedUnits int64 `json:"cached_units"`
+	// CacheWriteUnits is tokens written *to* cache, priced at a premium over
+	// base input. It is separate from CachedUnits because the two move the
+	// number in opposite directions, so combining them does not even average
+	// out — it produces a figure that is wrong either way.
+	CacheWriteUnits int64  `json:"cache_write_units"`
+	OtherUnits      int64  `json:"other_units"` // seats, characters, images
+	UnitKind        string `json:"unit_kind"`   // token | character | seat_day | request
 
 	AmountMicros int64  `json:"amount_micros"`
 	AmountBasis  Basis  `json:"amount_basis"`
@@ -88,7 +93,7 @@ func (f Fact) ID() string {
 
 // TotalUnits is every unit the fact counts, for displays that want one number.
 func (f Fact) TotalUnits() int64 {
-	return f.InputUnits + f.OutputUnits + f.CachedUnits + f.OtherUnits
+	return f.InputUnits + f.OutputUnits + f.CachedUnits + f.CacheWriteUnits + f.OtherUnits
 }
 
 // Envelope wraps a batch of facts for anything that leaves this process.

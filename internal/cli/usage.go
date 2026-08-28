@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/prabhuvmk/aispend/internal/catalog"
 	"github.com/prabhuvmk/aispend/internal/egress"
 	"github.com/prabhuvmk/aispend/internal/fmtutil"
 	"github.com/prabhuvmk/aispend/internal/sink"
@@ -44,12 +45,16 @@ view is instant and costs nothing.`,
 		},
 	}
 	cmd.Flags().StringVar(&flagSince, "since", "30d", "window to report on: 7d, 30d, 90d, or a date (YYYY-MM-DD)")
+	cmd.Flags().BoolVar(&flagDetail, "detail", false, "show every row, with no truncation")
+	cmd.Flags().StringVar(&flagVendor, "vendor", "", "report on one vendor only")
 	return cmd
 }
 
 // renderUsage prints the headline number and the footer.
 func renderUsage(w io.Writer, caps ui.Caps, db *store.DB, dest sink.Sink, r timerange.Range) error {
-	t, err := db.Totals(r.FromDay(), r.ToDay())
+	filter := store.Filter{From: r.FromDay(), To: r.ToDay(), Vendor: flagVendor}
+
+	t, err := db.Totals(filter)
 	if err != nil {
 		return err
 	}
@@ -74,8 +79,137 @@ func renderUsage(w io.Writer, caps ui.Caps, db *store.DB, dest sink.Sink, r time
 			t.Facts-t.Priced, t.Facts, caps.Sep())))
 	}
 
+	if err := writeGroup(w, caps, db, store.ByVendor, "BY VENDOR", filter, t); err != nil {
+		return err
+	}
+
 	fmt.Fprintln(w)
 	return writeFooter(w, caps, dest, r, t)
+}
+
+// maxRows is how many rows a summary view shows before collapsing the rest into
+// a remainder line. Capping without a remainder would leave the column not
+// reconciling to the total, which is the first thing a sceptical reader checks.
+const maxRows = 10
+
+// writeGroup renders one grouped table: descending by spend, shares paired with
+// absolutes, a remainder line, and a totals row that visibly reconciles.
+func writeGroup(w io.Writer, caps ui.Caps, db *store.DB, by store.GroupBy,
+	title string, filter store.Filter, t store.Totals) error {
+
+	groups, err := db.GroupBy(by, filter)
+	if err != nil {
+		return err
+	}
+	if len(groups) == 0 {
+		return nil
+	}
+
+	fmt.Fprintf(w, "\n  %s\n", title)
+
+	shown := groups
+	var rest []store.Group
+	if !flagDetail && len(groups) > maxRows {
+		shown, rest = groups[:maxRows], groups[maxRows:]
+	}
+
+	rows := make([][3]string, 0, len(shown)+2)
+	for _, g := range shown {
+		rows = append(rows, [3]string{
+			labelFor(by, g.Key, caps),
+			fmtutil.MoneyOrUnknown(g.Micros, g.Priced > 0),
+			sharePct(g.Micros, t.Micros, g.Priced > 0 && t.Micros > 0),
+		})
+	}
+
+	if len(rest) > 0 {
+		var micros int64
+		var priced int
+		for _, g := range rest {
+			micros += g.Micros
+			priced += g.Priced
+		}
+		rows = append(rows, [3]string{
+			caps.Dim(fmt.Sprintf("…and %d more", len(rest))),
+			fmtutil.MoneyOrUnknown(micros, priced > 0),
+			sharePct(micros, t.Micros, priced > 0 && t.Micros > 0),
+		})
+	}
+
+	width := 0
+	for _, row := range rows {
+		if n := len([]rune(stripANSI(row[0]))); n > width {
+			width = n
+		}
+	}
+	if width < 34 {
+		width = 34
+	}
+
+	for _, row := range rows {
+		pad := width - len([]rune(stripANSI(row[0])))
+		fmt.Fprintf(w, "  %s%s  %12s  %7s\n", row[0], strings.Repeat(" ", pad), row[1], row[2])
+	}
+
+	// The totals row is what makes the column checkable by eye rather than
+	// taken on trust.
+	fmt.Fprintf(w, "  %s\n", caps.Dim(strings.Repeat(lineRune(caps), width+23)))
+	fmt.Fprintf(w, "  %s  %12s\n", strings.Repeat(" ", width),
+		fmtutil.MoneyOrUnknown(t.Micros, t.Priced > 0))
+	return nil
+}
+
+// labelFor renders a group key, showing an absent dimension as an em dash
+// rather than a blank cell that reads as a rendering bug.
+func labelFor(by store.GroupBy, key string, caps ui.Caps) string {
+	if key == "" {
+		switch by {
+		case store.ByProject:
+			return caps.Dash() + " no project reported"
+		case store.ByKey:
+			return caps.Dash() + " no key reported"
+		default:
+			return caps.Dash()
+		}
+	}
+	if by == store.ByVendor {
+		if v, ok := catalog.Get(key); ok {
+			return v.Name
+		}
+	}
+	return key
+}
+
+// sharePct pairs a percentage with the absolute it came from, per design 6.2.
+func sharePct(part, whole int64, known bool) string {
+	if !known || whole == 0 {
+		return fmtutil.Unknown
+	}
+	return fmt.Sprintf("%d%%", (part*100+whole/2)/whole)
+}
+
+func lineRune(caps ui.Caps) string {
+	if caps.UTF8 {
+		return "─"
+	}
+	return "-"
+}
+
+// stripANSI measures a styled string by its visible width.
+func stripANSI(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		if s[i] == 0x1b {
+			for i < len(s) && s[i] != 'm' {
+				i++
+			}
+			i++
+			continue
+		}
+		b.WriteByte(s[i])
+		i++
+	}
+	return b.String()
 }
 
 // writeFooter prints the trust block from design §6.1.
