@@ -69,6 +69,7 @@ keychain and are never written to the database, a config file, or any output.`,
 	root.AddCommand(newScanCmd())
 	root.AddCommand(newSyncCmd())
 	root.AddCommand(newUsageCmd())
+	root.AddCommand(newExportCmd())
 
 	return root
 }

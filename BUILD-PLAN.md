@@ -39,8 +39,9 @@ rewrite of history.
 - [x] **Run 19** — OpenRouter collector (the only vendor-reported cost in v1)
 - [x] **Run 20** — `owners.csv`, `--by team`, the loud Unattributed line
 - [x] **Run 21** — surprise rules, the `⚠` block and the `Next` line
-- [ ] **Run 22** — `--json` / `--csv` / `export`  ← next
-- [ ] Runs 23–26 below
+- [x] **Run 22** — `--json` / `--csv` / `export`
+- [ ] **Run 23** — `connect`, `disconnect`, `purge`  ← next
+- [ ] Runs 24–26 below
 
 ---
 
@@ -1130,7 +1131,7 @@ for. The closing `Next` line turns a printed report into the next five minutes o
 
 ---
 
-## Run 22 — machine-readable output
+## Run 22 — machine-readable output ✅
 
 **Do this**
 ```bash

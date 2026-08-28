@@ -51,12 +51,24 @@ view is instant and costs nothing.`,
 			}
 			defer db.Close()
 
+			// --json and --csv on usage produce the same bytes as export, so
+			// there is one implementation of each format rather than two that
+			// can drift.
+			filter := store.Filter{From: r.FromDay(), To: r.ToDay(), Vendor: flagVendor}
+			switch {
+			case flagCSV:
+				return exportCSV(cmd.OutOrStdout(), db, filter)
+			case flagJSON:
+				return exportJSON(cmd.OutOrStdout(), db, filter, r)
+			}
 			return renderUsage(cmd.OutOrStdout(), capsFor(cmd), db, destination(db), r)
 		},
 	}
 	cmd.Flags().StringVar(&flagSince, "since", "30d", "window to report on: 7d, 30d, 90d, or a date (YYYY-MM-DD)")
 	cmd.Flags().BoolVar(&flagDetail, "detail", false, "show every row, with no truncation")
 	cmd.Flags().StringVar(&flagVendor, "vendor", "", "report on one vendor only")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "write JSON instead of a report")
+	cmd.Flags().BoolVar(&flagCSV, "csv", false, "write CSV instead of a report")
 	cmd.Flags().StringVar(&flagBy, "by", "",
 		"break spend down by one dimension: team, "+strings.Join(store.GroupByNames(), ", "))
 	return cmd

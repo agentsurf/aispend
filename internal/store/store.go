@@ -14,11 +14,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite" // pure Go: no cgo, so cross-compilation stays one command
 
 	"github.com/prabhuvmk/aispend/internal/config"
 	"github.com/prabhuvmk/aispend/internal/dbg"
+	"github.com/prabhuvmk/aispend/internal/fact"
 )
 
 // DB is an open, migrated database.
@@ -505,6 +507,36 @@ func (d *DB) UnpricedModels(f Filter) ([]string, error) {
 		if err := rows.Scan(&v); err != nil {
 			return nil, err
 		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// Facts returns every fact in the window, latest revision only, oldest first.
+func (d *DB) Facts(f Filter) ([]fact.Fact, error) {
+	rows, err := d.sql.Query(latestCTE+`
+		SELECT vendor, day, workspace_ref, principal_ref, model_ref,
+		       input_units, output_units, cached_units, cache_write_units, other_units,
+		       unit_kind, amount_micros, amount_basis, price_version, revision, collected_at
+		FROM latest`+vendorClause+`
+		ORDER BY day, vendor, model_ref, principal_ref`, f.args()...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []fact.Fact
+	for rows.Next() {
+		var v fact.Fact
+		var basis string
+		var collected int64
+		if err := rows.Scan(&v.Vendor, &v.Day, &v.WorkspaceRef, &v.PrincipalRef, &v.ModelRef,
+			&v.InputUnits, &v.OutputUnits, &v.CachedUnits, &v.CacheWriteUnits, &v.OtherUnits,
+			&v.UnitKind, &v.AmountMicros, &basis, &v.PriceVersion, &v.Revision, &collected); err != nil {
+			return nil, err
+		}
+		v.AmountBasis = fact.Basis(basis)
+		v.CollectedAt = time.Unix(collected, 0).UTC()
 		out = append(out, v)
 	}
 	return out, rows.Err()

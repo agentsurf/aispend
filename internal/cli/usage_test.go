@@ -3,7 +3,10 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
+	"encoding/json"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -179,5 +182,198 @@ func TestFooterStatesTheTimezone(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "restate") {
 		t.Errorf("the footer does not warn that recent days may change:\n%s", buf.String())
+	}
+}
+
+func seedExport(t *testing.T, db *store.DB) {
+	t.Helper()
+	s := sink.NewSQLite(db.SQL())
+	at := time.Date(2026, 8, 27, 12, 0, 0, 0, time.UTC)
+	err := s.Write(context.Background(), []fact.Fact{
+		{Vendor: "anthropic", Day: "2026-08-27", WorkspaceRef: "wrkspc_1",
+			PrincipalRef: "apikey_1", ModelRef: "claude-opus-4-6", UnitKind: "token",
+			InputUnits: 811500, OutputUnits: 364000, CachedUnits: 2080000,
+			CacheWriteUnits: 988000, OtherUnits: 40,
+			AmountMicros: 20_372_500, AmountBasis: fact.BasisComputed,
+			PriceVersion: "2026.08", Revision: 1, CollectedAt: at},
+		{Vendor: "openrouter", Day: "2026-08-27", PrincipalRef: "sk-or-1",
+			ModelRef: "google/gemini-3-pro", UnitKind: "token",
+			InputUnits: 61000, OutputUnits: 7400,
+			AmountMicros: 520_000, AmountBasis: fact.BasisVendorReported,
+			Revision: 1, CollectedAt: at},
+	})
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+}
+
+// Anything reading these formats is going to do arithmetic on them, so money is
+// raw integer micros and token counts are exact. The humanised forms exist for
+// a terminal only.
+func TestJSONCarriesExactIntegers(t *testing.T) {
+	db := testDB(t)
+	seedExport(t, db)
+
+	var buf bytes.Buffer
+	filter := store.Filter{From: "2026-08-01", To: "2026-08-31"}
+	if err := exportJSON(&buf, db, filter, testWindow(t)); err != nil {
+		t.Fatalf("exportJSON: %v", err)
+	}
+
+	var doc map[string]any
+	dec := json.NewDecoder(bytes.NewReader(buf.Bytes()))
+	dec.UseNumber()
+	if err := dec.Decode(&doc); err != nil {
+		t.Fatalf("output is not valid JSON: %v", err)
+	}
+
+	if got := doc["total_micros"].(json.Number).String(); got != "20892500" {
+		t.Errorf("total_micros = %s, want 20892500", got)
+	}
+	// No humanised strings, and no floats.
+	body := buf.String()
+	for _, bad := range []string{`"$`, "811K", "2.1M", `"20.37"`} {
+		if strings.Contains(body, bad) {
+			t.Errorf("JSON contains a humanised value %q", bad)
+		}
+	}
+	facts := doc["facts"].([]any)
+	first := facts[0].(map[string]any)
+	for _, field := range []string{"input_units", "amount_micros", "cache_write_units"} {
+		n, ok := first[field].(json.Number)
+		if !ok {
+			t.Errorf("%s is not a number", field)
+			continue
+		}
+		if strings.ContainsAny(n.String(), ".eE") {
+			t.Errorf("%s = %s is a float", field, n)
+		}
+	}
+}
+
+// A number a spreadsheet can add: no currency symbol, no thousands separator.
+func TestCSVAmountsAreParseableNumbers(t *testing.T) {
+	db := testDB(t)
+	seedExport(t, db)
+
+	var buf bytes.Buffer
+	if err := exportCSV(&buf, db, store.Filter{From: "2026-08-01", To: "2026-08-31"}); err != nil {
+		t.Fatalf("exportCSV: %v", err)
+	}
+
+	records, err := csv.NewReader(bytes.NewReader(buf.Bytes())).ReadAll()
+	if err != nil {
+		t.Fatalf("output is not valid CSV: %v", err)
+	}
+	if len(records) != 3 {
+		t.Fatalf("got %d rows (including header), want 3", len(records))
+	}
+
+	header := records[0]
+	col := map[string]int{}
+	for i, h := range header {
+		col[h] = i
+	}
+	for _, needed := range []string{"vendor", "day", "model", "amount_usd", "amount_micros", "amount_basis"} {
+		if _, ok := col[needed]; !ok {
+			t.Errorf("CSV has no %q column", needed)
+		}
+	}
+
+	var sumMicros int64
+	for _, rec := range records[1:] {
+		if _, err := strconv.ParseFloat(rec[col["amount_usd"]], 64); err != nil {
+			t.Errorf("amount_usd %q is not a plain number: %v", rec[col["amount_usd"]], err)
+		}
+		n, err := strconv.ParseInt(rec[col["amount_micros"]], 10, 64)
+		if err != nil {
+			t.Errorf("amount_micros %q is not an integer", rec[col["amount_micros"]])
+		}
+		sumMicros += n
+	}
+	if sumMicros != 20_892_500 {
+		t.Errorf("CSV micros sum to %d, want 20892500", sumMicros)
+	}
+}
+
+// The three formats must never disagree: a reader who checks one against
+// another and finds a difference stops trusting all three.
+func TestEveryFormatReportsTheSameTotal(t *testing.T) {
+	db := testDB(t)
+	seedExport(t, db)
+	filter := store.Filter{From: "2026-08-01", To: "2026-08-31"}
+
+	totals, err := db.Totals(filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var jsonBuf bytes.Buffer
+	exportJSON(&jsonBuf, db, filter, testWindow(t))
+	var doc struct {
+		Total int64 `json:"total_micros"`
+	}
+	json.Unmarshal(jsonBuf.Bytes(), &doc)
+
+	var csvBuf bytes.Buffer
+	exportCSV(&csvBuf, db, filter)
+	records, _ := csv.NewReader(bytes.NewReader(csvBuf.Bytes())).ReadAll()
+	var csvTotal int64
+	for _, rec := range records[1:] {
+		n, _ := strconv.ParseInt(rec[12], 10, 64)
+		csvTotal += n
+	}
+
+	if doc.Total != totals.Micros || csvTotal != totals.Micros {
+		t.Errorf("totals disagree: report=%d json=%d csv=%d", totals.Micros, doc.Total, csvTotal)
+	}
+}
+
+// No output format may carry key material. The principal column holds the
+// vendor's own key *identifier*, which is not a secret, and nothing else.
+func TestExportsCarryNoCredentialMaterial(t *testing.T) {
+	const secret = "sk-test-0000000000000000a4f2"
+	t.Setenv("OPENAI_ADMIN_KEY", secret)
+
+	db := testDB(t)
+	seedExport(t, db)
+	filter := store.Filter{From: "2026-08-01", To: "2026-08-31"}
+
+	var jsonBuf, csvBuf bytes.Buffer
+	exportJSON(&jsonBuf, db, filter, testWindow(t))
+	exportCSV(&csvBuf, db, filter)
+
+	for name, body := range map[string]string{"json": jsonBuf.String(), "csv": csvBuf.String()} {
+		if strings.Contains(body, secret) {
+			t.Errorf("%s export carried a credential", name)
+		}
+		for _, word := range []string{"OPENAI_ADMIN_KEY", "Authorization", "Bearer"} {
+			if strings.Contains(body, word) {
+				t.Errorf("%s export mentions %q", name, word)
+			}
+		}
+	}
+}
+
+func TestExportOnAnEmptyDatabase(t *testing.T) {
+	db := testDB(t)
+	filter := store.Filter{From: "2026-08-01", To: "2026-08-31"}
+
+	var buf bytes.Buffer
+	if err := exportJSON(&buf, db, filter, testWindow(t)); err != nil {
+		t.Fatalf("exportJSON on an empty database: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("empty export is not valid JSON: %v", err)
+	}
+
+	buf.Reset()
+	if err := exportCSV(&buf, db, filter); err != nil {
+		t.Fatalf("exportCSV on an empty database: %v", err)
+	}
+	// A header with no rows is still a valid file a spreadsheet can open.
+	if !strings.HasPrefix(buf.String(), "vendor,day,") {
+		t.Errorf("empty CSV has no header: %q", buf.String())
 	}
 }
