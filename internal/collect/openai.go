@@ -116,8 +116,12 @@ func (o *openAI) Collect(ctx context.Context, c cred.Credential, r timerange.Ran
 		q.Set("end_time", strconv.FormatInt(r.To.AddDate(0, 0, 1).Unix(), 10))
 		q.Set("bucket_width", "1d")
 		q.Set("limit", strconv.Itoa(limit))
+		// Both vendors require the PHP-style bracket suffix for repeated array
+		// parameters. Without it OpenAI silently ignores the grouping and
+		// returns one undifferentiated row per bucket, while Anthropic rejects
+		// the request outright — the second failure is the kinder one.
 		for _, g := range []string{"project_id", "model", "api_key_id"} {
-			q.Add("group_by", g)
+			q.Add("group_by[]", g)
 		}
 		if page != "" {
 			q.Set("page", page)

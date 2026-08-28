@@ -126,8 +126,12 @@ func (a *anthropic) Collect(ctx context.Context, c cred.Credential, r timerange.
 		q.Set("ending_at", r.To.AddDate(0, 0, 1).Format(time.RFC3339))
 		q.Set("bucket_width", "1d")
 		q.Set("limit", strconv.Itoa(limit))
+		// Both vendors require the bracket suffix for repeated array parameters.
+		// Anthropic rejects a bare group_by with a 400; OpenAI accepts it and
+		// silently returns ungrouped rows, which is the more dangerous of the
+		// two because it looks like it worked.
 		for _, g := range []string{"workspace_id", "model", "api_key_id"} {
-			q.Add("group_by", g)
+			q.Add("group_by[]", g)
 		}
 		if page != "" {
 			q.Set("page", page)

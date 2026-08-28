@@ -867,3 +867,46 @@ func TestAllThreeVendorsAreRegistered(t *testing.T) {
 		}
 	}
 }
+
+// Both vendors require the bracket suffix on repeated array parameters.
+// Anthropic rejects a bare group_by with a 400; OpenAI accepts it and silently
+// returns ungrouped rows, which is the more dangerous of the two because it
+// looks like it worked. Found only by a live call — no fixture could have
+// caught it, because the fixture transport ignores the query string.
+func TestCollectorsSendBracketedArrayParameters(t *testing.T) {
+	for _, tc := range []struct {
+		vendor string
+		body   string
+		run    func(*http.Client) error
+	}{
+		{"openai", `{"data":[],"has_more":false}`, func(c *http.Client) error {
+			_, err := (&openAI{http: c, limiter: newLimiter(1000)}).Collect(
+				context.Background(), cred.New("openai", cred.SourceEnv, "K", testKey),
+				window(t, "1d"), "", EmitterFunc(func(fact.Fact) error { return nil }))
+			return err
+		}},
+		{"anthropic", `{"data":[],"has_more":false,"next_page":null}`, func(c *http.Client) error {
+			_, err := (&anthropic{http: c, limiter: newLimiter(1000)}).Collect(
+				context.Background(), cred.New("anthropic", cred.SourceEnv, "K", testKey),
+				window(t, "1d"), "", EmitterFunc(func(fact.Fact) error { return nil }))
+			return err
+		}},
+	} {
+		var raw string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			raw = r.URL.RawQuery
+			w.Write([]byte(tc.body))
+		}))
+
+		client := srv.Client()
+		client.Transport = rewriteHost{base: client.Transport, to: strings.TrimPrefix(srv.URL, "http://")}
+		if err := tc.run(client); err != nil {
+			t.Errorf("%s: %v", tc.vendor, err)
+		}
+		srv.Close()
+
+		if !strings.Contains(raw, "group_by%5B%5D=") {
+			t.Errorf("%s sent %q, want bracketed group_by[] parameters", tc.vendor, raw)
+		}
+	}
+}
