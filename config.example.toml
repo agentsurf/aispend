@@ -1,0 +1,13 @@
+# ~/.aispend/config.toml — every setting is optional.
+# Copy to ~/.aispend/config.toml only if you want to change a default.
+
+# debug    = false   # same as --debug
+# no_color = false   # same as --no-color; NO_COLOR is honoured too
+
+# The agent posture is not built yet. These are here so the shape is settled
+# before there are agents deployed in the field.
+[agent]
+# interval = "1h"    # how often a sidecar would collect
+# lookback = "7d"    # trailing re-pull window, to catch vendor restatements
+# endpoint = ""      # empty = local only. Nothing outbound. There is deliberately
+                     # no flag and no env var that can set this (design 9.4).

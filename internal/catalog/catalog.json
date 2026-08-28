@@ -1,0 +1,61 @@
+{
+  "version": "2026.08",
+  "vendors": [
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "unit_kind": "token",
+      "allowed_hosts": ["api.openai.com"],
+      "credential": {
+        "env": ["OPENAI_ADMIN_KEY", "OPENAI_API_KEY"],
+        "kind": "Admin key",
+        "note": "Organization usage requires an Admin key, not a regular API key.",
+        "where": "platform.openai.com → Settings → Organization → Admin keys"
+      },
+      "endpoints": {
+        "verify": "/v1/organization/projects",
+        "usage": "/v1/organization/usage/completions",
+        "costs": "/v1/organization/costs"
+      },
+      "rate_limit_rps": 2,
+      "reports_cost": true
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "unit_kind": "token",
+      "allowed_hosts": ["api.anthropic.com"],
+      "credential": {
+        "env": ["ANTHROPIC_ADMIN_KEY"],
+        "kind": "Admin key",
+        "note": "Admin API keys are a separate key type from regular API keys.",
+        "where": "Console → Settings → Admin keys"
+      },
+      "endpoints": {
+        "verify": "/v1/organizations/workspaces",
+        "usage": "/v1/organizations/usage_report/messages",
+        "costs": "/v1/organizations/cost_report"
+      },
+      "rate_limit_rps": 2,
+      "reports_cost": true
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "unit_kind": "token",
+      "allowed_hosts": ["openrouter.ai"],
+      "credential": {
+        "env": ["OPENROUTER_API_KEY"],
+        "kind": "API key",
+        "note": "A standard API key can read this account's own activity.",
+        "where": "openrouter.ai → Keys"
+      },
+      "endpoints": {
+        "verify": "/api/v1/key",
+        "usage": "/api/v1/activity"
+      },
+      "rate_limit_rps": 2,
+      "reports_cost": true
+    }
+  ]
+}
