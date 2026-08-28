@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/prabhuvmk/aispend/internal/catalog"
 	"github.com/prabhuvmk/aispend/internal/config"
+	"github.com/prabhuvmk/aispend/internal/timerange"
 	"github.com/prabhuvmk/aispend/internal/ui"
 )
 
@@ -139,5 +142,76 @@ func TestDoctorCredentialsBlock(t *testing.T) {
 	// A vendor with no key prints an em dash, not a failure and not a zero.
 	if !strings.Contains(got, "—") || !strings.Contains(got, "no credential") {
 		t.Errorf("unconfigured vendors are not reported as absent:\n%s", got)
+	}
+}
+
+func TestDryRunPlanIsDerivedFromTheWindow(t *testing.T) {
+	t.Setenv("OPENAI_ADMIN_KEY", "sk-test-0000000000000000a4f2")
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("ANTHROPIC_ADMIN_KEY", "")
+	t.Setenv("OPENROUTER_API_KEY", "")
+
+	now := time.Date(2026, 8, 28, 0, 0, 0, 0, time.UTC)
+	counts := map[string]int{}
+	for _, since := range []string{"7d", "30d"} {
+		r, err := timerange.Parse(since, now)
+		if err != nil {
+			t.Fatalf("Parse: %v", err)
+		}
+		var buf bytes.Buffer
+		if err := dryRun(&buf, ui.Caps{UTF8: true}, r); err != nil {
+			t.Fatalf("dryRun: %v", err)
+		}
+		counts[since] = strings.Count(buf.String(), "would GET")
+
+		if strings.Contains(buf.String(), "anthropic") && !strings.Contains(buf.String(), "skipped") {
+			t.Error("an unconnected vendor appeared as a planned request")
+		}
+	}
+	if counts["7d"] == 0 || counts["30d"] == 0 {
+		t.Fatalf("no requests planned: %v", counts)
+	}
+}
+
+// The count must move with the window, or --dry-run is not describing the scan
+// it claims to describe.
+func TestDryRunCountTracksTheWindow(t *testing.T) {
+	t.Setenv("OPENAI_ADMIN_KEY", "sk-test-0000000000000000a4f2")
+
+	now := time.Date(2026, 8, 28, 0, 0, 0, 0, time.UTC)
+	seven, _ := timerange.Parse("7d", now)
+	thirty, _ := timerange.Parse("30d", now)
+
+	var a, b bytes.Buffer
+	dryRun(&a, ui.Caps{}, seven)
+	dryRun(&b, ui.Caps{}, thirty)
+
+	if !strings.Contains(a.String(), "×7") {
+		t.Errorf("7d plan has no ×7:\n%s", a.String())
+	}
+	if !strings.Contains(b.String(), "×30") {
+		t.Errorf("30d plan has no ×30:\n%s", b.String())
+	}
+}
+
+// The Privacy claim is generated from the allowlist the dialer enforces, never
+// written by hand, so it is verifiable rather than promotional.
+func TestDryRunListsEveryPermittedHostAndNoOthers(t *testing.T) {
+	now := time.Date(2026, 8, 28, 0, 0, 0, 0, time.UTC)
+	r, _ := timerange.Parse("7d", now)
+
+	var buf bytes.Buffer
+	if err := dryRun(&buf, ui.Caps{}, r); err != nil {
+		t.Fatalf("dryRun: %v", err)
+	}
+	got := buf.String()
+
+	for _, host := range catalog.AllowedHosts() {
+		if !strings.Contains(got, host) {
+			t.Errorf("permitted host %s is not disclosed:\n%s", host, got)
+		}
+	}
+	if !strings.Contains(got, "no request is made") {
+		t.Error("dry run does not say that it makes no request")
 	}
 }

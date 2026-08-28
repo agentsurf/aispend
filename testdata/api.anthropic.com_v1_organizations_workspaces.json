@@ -1,0 +1,9 @@
+{
+  "data": [
+    {"id": "wrkspc_22", "type": "workspace", "name": "Acme production", "created_at": "2026-01-14T00:00:00Z", "archived_at": null},
+    {"id": "wrkspc_31", "type": "workspace", "name": "Acme staging", "created_at": "2026-02-02T00:00:00Z", "archived_at": null}
+  ],
+  "has_more": false,
+  "first_id": "wrkspc_22",
+  "last_id": "wrkspc_31"
+}

@@ -23,8 +23,11 @@ rewrite of history.
 - [x] **Run 4** — SQLite + schema v1 + migrations + `fact_id` + `doctor` db health
 - [x] **Run 5** — `Sink` interface + `SQLiteSink` + fact envelope + `debug seed`
 - [x] **Run 6** — credential resolver (env), masked display, `doctor` credentials block
-- [ ] **Run 7** — egress-guarded HTTP client + `scan --dry-run`  ← next
-- [ ] Runs 8–26 below
+- [x] **Run 7** — egress guard in the dialer + `scan --dry-run`
+- [x] **Run 8** — fixture mode (`--fixture`, persistent flag)
+- [x] **Run 9** — `Collector` interface + `Verify` + `doctor` vendors block
+- [ ] **Run 10** — OpenAI `Collect()`, one day, stdout only  ← next
+- [ ] Runs 11–26 below
 
 ---
 
@@ -191,12 +194,16 @@ Three, all deliberate. Everything else follows the design as written.
    argument is that a `go.mod` a security reviewer opens is part of the UX. If a later table needs
    something tabwriter can't do, adding go-pretty then costs nothing. **Say the word if you'd rather
    have it from the start.**
-3. **A hand-rolled TOML subset instead of a TOML library** (run 3). The config schema is five keys in
+3. **Anthropic's `Verify` pulled forward from run 15 into run 9** (deviation added after the fact).
+   Run 9's point is the first real network call, and a run you cannot verify is not delivered. The
+   Anthropic Admin API endpoints were confirmed against current documentation, the `Verify` shape is
+   identical to OpenAI's, and it is ~60 lines. Anthropic's `Collect` stays in run 15 where it belongs.
+4. **A hand-rolled TOML subset instead of a TOML library** (run 3). The config schema is five keys in
    two sections; a parser for exactly that is ~110 lines with better error messages than a general
    library gives, and it keeps direct dependencies at 4. Comments, sections, quoted strings, integers
    and booleans are supported; anything else is a clear error naming the file and line, so a user hits a
    wall rather than a silent misparse. If the schema outgrows it, that's the moment to reconsider.
-4. **The §9.2 "do it now" items are pinned to specific runs** rather than left as a section: config file
+5. **The §9.2 "do it now" items are pinned to specific runs** rather than left as a section: config file
    → run 3, `fact_id` → runs 4 and 5, fact envelope → run 5, `Sink` interface → run 5. All four are
    cheap today and expensive to retrofit, which means they need a run number or they don't happen.
 
@@ -533,7 +540,7 @@ from an unconfigured one, which is the first half of the question `doctor` will 
 
 ---
 
-## Run 7 — the egress guard
+## Run 7 — the egress guard ✅
 
 **Build:** `http.Transport` whose `DialContext` refuses any host absent from the catalog (design §8), plus
 `scan --dry-run` printing the exact hosts and requests it *would* make, then exiting. And the test that a
@@ -568,7 +575,7 @@ and the input the report's `Privacy` footer is generated from.
 
 ---
 
-## Run 8 — fixture mode
+## Run 8 — fixture mode ✅
 
 **Build:** `--fixture <dir>` swaps the transport for one serving canned JSON from disk. Checked-in
 fixtures for the OpenAI usage and organisation endpoints. From here the renderer iterates in a tight
@@ -590,6 +597,14 @@ echo "now turn wifi off and run the next line"
 4. Debug output shows fixture reads, not HTTP requests.
 5. Two consecutive runs produce byte-identical output — determinism is the point.
 6. A malformed fixture produces a clear error naming the file, not a panic.
+7. `--fixture` is a **persistent** flag, so `doctor` can be driven by it too — that is the command
+   you most want to run without a network.
+8. A missing fixture lists what it looked for and what the directory actually contains.
+
+**Scope correction, declared rather than glossed:** this run's original criterion 3 said fixture mode
+would "print facts". It cannot — parsing a vendor response into facts is the collector's job, and the
+first collector is run 9/10. What run 8 delivers is the transport: a full HTTP round trip served from
+disk, exercised end to end by `doctor --fixture`. Facts appear in run 10 as planned.
 
 
 **Outcome.** Development stops costing money and stops depending on the network. `--fixture` swaps
@@ -601,7 +616,7 @@ reordering of the design's build plan in this document.
 
 ---
 
-## Run 9 — OpenAI `Verify()` · first real network call
+## Run 9 — OpenAI `Verify()` · first real network call ✅
 
 **Needs:** `OPENAI_ADMIN_KEY` (an **Admin** key — a normal API key won't read org usage).
 
@@ -623,6 +638,9 @@ echo "now turn wifi off, set a good key again, and re-run ./aispend doctor"
 2. `doctor` grows a `vendors` block and prints `openai  ✓ reachable · org <name> · N projects · M keys`.
 3. A bad key produces the design §6.6 shape: what happened, what it means, what to do — and **no raw
    HTTP body, no stack trace**.
+   3a. A non-network failure (a malformed fixture, a TLS error) must **not** be reported as a
+   connectivity problem. `http.Client` wraps everything in `*url.Error`, which itself satisfies
+   `net.Error`, so the obvious type check blames the firewall for everything. Unwrap first.
 4. A normal (non-admin) key produces a message naming the admin-key requirement specifically.
 5. **A vendor with no credential prints `—`, not a failure.** Absent is not broken.
 6. **Unreachable is distinguished from rejected.** Block the host (`/etc/hosts` or wifi off) and the

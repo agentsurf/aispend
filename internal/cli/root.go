@@ -15,6 +15,10 @@ import (
 var (
 	flagDebug   bool
 	flagNoColor bool
+	// flagFixture is persistent rather than scan-only: doctor is the command
+	// you most want to run against canned responses, and every command that
+	// makes a request should be divertable the same way.
+	flagFixture string
 )
 
 // envDebug turns on debug output without a flag, for wrapper scripts and CI.
@@ -55,11 +59,14 @@ keychain and are never written to the database, a config file, or any output.`,
 
 	root.PersistentFlags().BoolVar(&flagDebug, "debug", false, "print internal detail to stderr")
 	root.PersistentFlags().BoolVar(&flagNoColor, "no-color", false, "disable colour output")
+	root.PersistentFlags().StringVar(&flagFixture, "fixture", "",
+		"serve vendor responses from a directory of canned JSON instead of the network")
 
 	root.AddCommand(newVersionCmd())
 	root.AddCommand(newDoctorCmd())
 	root.AddCommand(newConnectionsCmd())
 	root.AddCommand(newDebugCmd())
+	root.AddCommand(newScanCmd())
 
 	return root
 }

@@ -1,13 +1,17 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/prabhuvmk/aispend/internal/collect"
 	"github.com/prabhuvmk/aispend/internal/config"
 	"github.com/prabhuvmk/aispend/internal/cred"
 	"github.com/prabhuvmk/aispend/internal/store"
@@ -38,7 +42,11 @@ later it will also report what each configured credential could actually read.`,
 				return err
 			}
 			fmt.Fprintln(out)
-			return reportCredentials(out, caps)
+			if err := reportCredentials(out, caps); err != nil {
+				return err
+			}
+			fmt.Fprintln(out)
+			return reportVendors(out, caps, verifyVendors(cmd))
 		},
 	}
 }
@@ -146,4 +154,78 @@ func reportCredentials(w io.Writer, caps ui.Caps) error {
 		fmt.Fprintf(tw, "  %s\t%s\t%s %s\t(%s)\n", lead, c.Vendor, c.Source, c.Ref, c.Display())
 	}
 	return tw.Flush()
+}
+
+// reportVendors is doctor's network block: what each credential could actually
+// read. It is the reason doctor is the command to give a hesitant prospect —
+// one cheap read per vendor, nothing collected, nothing stored.
+func reportVendors(w io.Writer, caps ui.Caps, checks []vendorCheck) error {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+
+	for i, c := range checks {
+		lead := ""
+		if i == 0 {
+			lead = "vendors"
+		}
+
+		switch {
+		case c.NoCredential:
+			fmt.Fprintf(tw, "  %s\t%s\t%s\tno credential configured\n", lead, c.Vendor, caps.Dash())
+		case c.Unsupported:
+			fmt.Fprintf(tw, "  %s\t%s\t%s\tnot implemented in this build\n", lead, c.Vendor, caps.Dash())
+		case c.Err != nil:
+			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\n", lead, c.Vendor, caps.Fail(), vendorErrLine(c.Err))
+		default:
+			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\n", lead, c.Vendor, caps.OK(),
+				"reachable "+caps.Sep()+" "+strings.Join(c.Info.Details, " "+caps.Sep()+" "),
+				c.Took.Round(time.Millisecond/10).String())
+		}
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+
+	// The full what/why/fix block goes below the table, so one failing vendor
+	// explains itself without pushing the others off the screen.
+	for _, c := range checks {
+		var ve *collect.VendorError
+		if c.Err != nil && errors.As(c.Err, &ve) {
+			fmt.Fprintf(w, "\n  %s %s\n", c.Vendor, ve.What)
+			fmt.Fprintf(w, "  %s\n", wrapIndent(ve.Why, 74, "  "))
+			if ve.Fix != "" {
+				fmt.Fprintf(w, "\n  Fix:  %s\n", ve.Fix)
+			}
+		}
+	}
+	return nil
+}
+
+func vendorErrLine(err error) string {
+	var ve *collect.VendorError
+	if errors.As(err, &ve) {
+		return ve.What
+	}
+	return err.Error()
+}
+
+// wrapIndent hard-wraps prose so an explanation stays readable in an 80-column
+// terminal instead of running off the edge.
+func wrapIndent(s string, width int, indent string) string {
+	var lines []string
+	var line string
+	for _, word := range strings.Fields(s) {
+		switch {
+		case line == "":
+			line = word
+		case len(line)+1+len(word) <= width:
+			line += " " + word
+		default:
+			lines = append(lines, line)
+			line = word
+		}
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n"+indent)
 }
