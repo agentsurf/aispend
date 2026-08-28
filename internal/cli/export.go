@@ -16,8 +16,9 @@ import (
 )
 
 var (
-	flagJSON bool
-	flagCSV  bool
+	flagJSON  bool
+	flagCSV   bool
+	flagShare bool
 )
 
 func newExportCmd() *cobra.Command {
@@ -51,6 +52,8 @@ are exact in both — the humanised forms are for the terminal only.`,
 			out := cmd.OutOrStdout()
 
 			switch {
+			case flagShare:
+				return renderShare(out, capsFor(cmd), db, r, askSurprised(cmd))
 			case flagCSV:
 				return exportCSV(out, db, filter)
 			default:
@@ -63,6 +66,8 @@ are exact in both — the humanised forms are for the terminal only.`,
 	cmd.Flags().StringVar(&flagVendor, "vendor", "", "export one vendor only")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "write JSON (the default)")
 	cmd.Flags().BoolVar(&flagCSV, "csv", false, "write CSV, for a spreadsheet")
+	cmd.Flags().BoolVar(&flagShare, "share", false,
+		"print a shape-only summary with no amounts, safe to paste into a reply")
 	return cmd
 }
 

@@ -70,6 +70,9 @@ keychain and are never written to the database, a config file, or any output.`,
 	root.AddCommand(newSyncCmd())
 	root.AddCommand(newUsageCmd())
 	root.AddCommand(newExportCmd())
+	root.AddCommand(newConnectCmd())
+	root.AddCommand(newDisconnectCmd())
+	root.AddCommand(newPurgeCmd())
 
 	return root
 }

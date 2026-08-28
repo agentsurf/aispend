@@ -40,8 +40,10 @@ rewrite of history.
 - [x] **Run 20** — `owners.csv`, `--by team`, the loud Unattributed line
 - [x] **Run 21** — surprise rules, the `⚠` block and the `Next` line
 - [x] **Run 22** — `--json` / `--csv` / `export`
-- [ ] **Run 23** — `connect`, `disconnect`, `purge`  ← next
-- [ ] Runs 24–26 below
+- [x] **Run 23** — `connect`, `disconnect`, `purge`, keychain via go-keyring
+- [x] **Run 24** — `export --share` and the `surprised?` prompt
+- [ ] **Run 25** — error pass + redacting writer  ← next
+- [ ] **Run 26** — README + release
 
 ---
 
@@ -1158,7 +1160,7 @@ Neither format carries credential material in any field, which is checked rather
 
 ---
 
-## Run 23 — `connect`, `disconnect`, `purge`
+## Run 23 — `connect`, `disconnect`, `purge` ✅
 
 **Build:** masked key entry via `x/term`, **immediate verification** before storing, keychain via
 `go-keyring`. `disconnect` offers to keep or drop collected data. `purge` deletes everything and prints
@@ -1198,7 +1200,7 @@ the objection is raised.
 
 ---
 
-## Run 24 — `export --share`
+## Run 24 — `export --share` ✅
 
 **Build:** the shape-not-amounts block from design §6.4, plus the single optional `surprised?` prompt at
 the end of `scan` — one keystroke, skippable, and literally the metric this whole exercise measures.

@@ -291,11 +291,11 @@ func runScan(cmd *cobra.Command, w io.Writer, caps ui.Caps, r timerange.Range, q
 	}
 
 	results := collect.Run(ctx, jobs, 4)
-	return reportScan(w, caps, db, dest, r, results, quiet)
+	return reportScan(cmd, w, caps, db, dest, r, results, quiet)
 }
 
 // reportScan prints the per-vendor outcome and records it in sync_state.
-func reportScan(w io.Writer, caps ui.Caps, db *store.DB, dest sink.Sink,
+func reportScan(cmd *cobra.Command, w io.Writer, caps ui.Caps, db *store.DB, dest sink.Sink,
 	r timerange.Range, results []collect.Result, quiet bool) error {
 
 	var (
@@ -351,7 +351,18 @@ func reportScan(w io.Writer, caps ui.Caps, db *store.DB, dest sink.Sink,
 	if quiet {
 		return nil
 	}
-	return renderUsage(w, caps, db, dest, r)
+	if err := renderUsage(w, caps, db, dest, r); err != nil {
+		return err
+	}
+
+	// One optional question at the end of a scan. It is skippable with Enter
+	// and silently absent without a terminal, and it is the metric this whole
+	// exercise exists to measure.
+	if surprised := askSurprised(cmd); surprised != "" {
+		fmt.Fprintf(w, "  %s\n", caps.Dim(
+			"noted — include it with: aispend export --share"))
+	}
+	return nil
 }
 
 // destination builds the sink chain for this run. There is exactly one sink in

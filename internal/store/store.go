@@ -541,3 +541,92 @@ func (d *DB) Facts(f Filter) ([]fact.Fact, error) {
 	}
 	return out, rows.Err()
 }
+
+// Connection records that a vendor is connected and where its credential is
+// looked up. It holds no secret, and there is deliberately no column that could
+// hold one.
+type Connection struct {
+	Vendor      string
+	AccountRef  string
+	Label       string
+	CredSource  string // 'env' | 'keyring'
+	KeyringRef  string // a lookup key, never the secret
+	ConnectedAt int64
+	LastOKAt    int64
+}
+
+// SaveConnection records or updates a connection.
+func (d *DB) SaveConnection(c Connection) error {
+	_, err := d.sql.Exec(`
+		INSERT INTO connection (vendor, account_ref, label, cred_source, keyring_ref, connected_at, last_ok_at)
+		VALUES (?,?,?,?,?,?,?)
+		ON CONFLICT(vendor) DO UPDATE SET
+			account_ref = excluded.account_ref,
+			label       = excluded.label,
+			cred_source = excluded.cred_source,
+			keyring_ref = excluded.keyring_ref,
+			last_ok_at  = excluded.last_ok_at`,
+		c.Vendor, c.AccountRef, c.Label, c.CredSource, c.KeyringRef, c.ConnectedAt, c.LastOKAt)
+	return err
+}
+
+// Connections lists what is connected, in catalog-independent order.
+func (d *DB) Connections() ([]Connection, error) {
+	rows, err := d.sql.Query(`
+		SELECT vendor, account_ref, label, cred_source, keyring_ref, connected_at,
+		       COALESCE(last_ok_at, 0)
+		FROM connection ORDER BY vendor`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Connection
+	for rows.Next() {
+		var c Connection
+		if err := rows.Scan(&c.Vendor, &c.AccountRef, &c.Label, &c.CredSource,
+			&c.KeyringRef, &c.ConnectedAt, &c.LastOKAt); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// DeleteConnection removes a connection record.
+func (d *DB) DeleteConnection(vendor string) error {
+	_, err := d.sql.Exec("DELETE FROM connection WHERE vendor = ?", vendor)
+	return err
+}
+
+// VendorFactCount is how much collected data a vendor has, so disconnect can
+// tell the user what is at stake before they decide.
+func (d *DB) VendorFactCount(vendor string) (int, error) {
+	var n int
+	err := d.sql.QueryRow("SELECT count(*) FROM usage_fact WHERE vendor = ?", vendor).Scan(&n)
+	return n, err
+}
+
+// DeleteVendorFacts removes one vendor's collected data and its sync state.
+func (d *DB) DeleteVendorFacts(vendor string) (int, error) {
+	n, err := d.VendorFactCount(vendor)
+	if err != nil {
+		return 0, err
+	}
+
+	tx, err := d.sql.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec("DELETE FROM usage_fact WHERE vendor = ?", vendor); err != nil {
+		return 0, err
+	}
+	// The sync cursor has to go with the facts, or the next scan would resume
+	// from a page whose contents are no longer stored and leave a silent gap.
+	if _, err := tx.Exec("DELETE FROM sync_state WHERE vendor = ?", vendor); err != nil {
+		return 0, err
+	}
+	return n, tx.Commit()
+}

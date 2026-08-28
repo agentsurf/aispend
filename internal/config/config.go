@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/prabhuvmk/aispend/internal/dbg"
@@ -124,3 +125,7 @@ func Stat(path string) (State, error) {
 	}
 	return State{Exists: true, Perm: info.Mode().Perm(), IsDir: info.IsDir()}, nil
 }
+
+// GOOS reports the operating system, so messages can name what the user
+// actually sees rather than a generic term.
+func GOOS() string { return runtime.GOOS }

@@ -45,13 +45,6 @@ func ResolveAll() []Credential {
 	return out
 }
 
-// fromKeyring is the OS credential store lookup. `connect` fills this in; until
-// then it reports nothing found, which is the truthful answer on a machine
-// where nothing has ever been stored.
-func fromKeyring(vendor string) (Credential, bool) {
-	return Credential{Vendor: vendor}, false
-}
-
 // KeyringRef is the lookup key for a vendor's entry in the OS credential store.
 // It is what gets written to the connection table — a reference, never a secret.
 func KeyringRef(vendor string) string { return "aispend:" + vendor }
