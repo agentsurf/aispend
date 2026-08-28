@@ -8,6 +8,7 @@ package collect
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -35,6 +36,14 @@ type Collector interface {
 	Collect(ctx context.Context, c cred.Credential, r timerange.Range,
 		cursor string, emit func(fact.Fact) error) (nextCursor string, err error)
 }
+
+// ErrNotImplemented means this vendor's collector has not been written yet.
+//
+// It is deliberately distinct from a vendor failure: "we have not built this"
+// and "your credential was rejected" call for different reactions from the
+// reader, and rendering the first as a red ✗ trains people to ignore the mark
+// that matters. It disappears vendor by vendor as the collectors land.
+var ErrNotImplemented = errors.New("collection is not implemented in this build yet")
 
 // AccountInfo is what a credential could see: enough to prove the key works and
 // to tell the user which account they are looking at, and nothing more.

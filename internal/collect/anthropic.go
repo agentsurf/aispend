@@ -58,8 +58,10 @@ func (a *anthropic) Verify(ctx context.Context, c cred.Credential) (AccountInfo,
 	return info, nil
 }
 
+// Collect lands in run 15. Verify above already works, so a credential can be
+// checked today even though nothing is collected from it yet.
 func (a *anthropic) Collect(context.Context, cred.Credential, timerange.Range, string, func(fact.Fact) error) (string, error) {
-	return "", fmt.Errorf("anthropic: collection is not implemented in this build yet")
+	return "", fmt.Errorf("anthropic: %w", ErrNotImplemented)
 }
 
 func (a *anthropic) get(ctx context.Context, c cred.Credential, url string, out any) error {

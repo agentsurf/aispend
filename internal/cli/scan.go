@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,13 +14,16 @@ import (
 	"github.com/prabhuvmk/aispend/internal/collect"
 	"github.com/prabhuvmk/aispend/internal/cred"
 	"github.com/prabhuvmk/aispend/internal/egress"
+	"github.com/prabhuvmk/aispend/internal/fact"
+	"github.com/prabhuvmk/aispend/internal/fmtutil"
 	"github.com/prabhuvmk/aispend/internal/timerange"
 	"github.com/prabhuvmk/aispend/internal/ui"
 )
 
 var (
-	flagSince  string
-	flagDryRun bool
+	flagSince   string
+	flagDryRun  bool
+	flagKeepRaw bool
 )
 
 func newScanCmd() *cobra.Command {
@@ -42,15 +46,13 @@ in full by --dry-run.`,
 			if flagDryRun {
 				return dryRun(out, caps, r)
 			}
-			return fmt.Errorf(
-				"collection is not wired up in this build yet\n\n" +
-					"  Try:  aispend scan --dry-run    (shows exactly what it would request)\n" +
-					"        aispend doctor            (checks each credential against its vendor)")
+			return runScan(cmd, out, caps, r)
 		},
 	}
 
 	cmd.Flags().StringVar(&flagSince, "since", "30d", "window to collect: 7d, 30d, 90d, or a date (YYYY-MM-DD)")
 	cmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "print every request that would be made, then exit without making any")
+	cmd.Flags().BoolVar(&flagKeepRaw, "keep-raw", false, "save each vendor response under ~/.aispend/raw/ so a figure can be traced to its source")
 	return cmd
 }
 
@@ -178,4 +180,135 @@ type vendorCheck struct {
 	Info         collect.AccountInfo
 	Err          error
 	Took         time.Duration
+}
+
+// runScan collects from every connected vendor and prints what it found.
+//
+// Nothing is written to the database in this build: the facts are printed so the
+// mapping from a vendor's response onto the fact schema can be checked against
+// the vendor's own dashboard before anything is stored. Persistence is the next
+// run.
+func runScan(cmd *cobra.Command, w io.Writer, caps ui.Caps, r timerange.Range) error {
+	client, err := scanClient()
+	if err != nil {
+		return err
+	}
+	registry := collect.New(client)
+
+	var (
+		total    int
+		problems []*collect.VendorError
+		unpriced int
+	)
+
+	fmt.Fprintf(w, "\n  Scanning %s\n\n", r.String())
+
+	for _, v := range catalog.Vendors() {
+		c := cred.Resolve(v)
+		if c.Empty() {
+			continue
+		}
+		collector, ok := registry.Get(v.ID)
+		if !ok {
+			fmt.Fprintf(w, "  %s %-11s %s\n", caps.Dash(), v.ID, "not implemented in this build")
+			continue
+		}
+
+		started := time.Now()
+		count := 0
+		_, err := collector.Collect(cmd.Context(), c, r, "", func(f fact.Fact) error {
+			count++
+			if f.AmountBasis == fact.BasisUnknown {
+				unpriced++
+			}
+			fmt.Fprintln(w, "  "+factLine(f, caps))
+			return nil
+		})
+		total += count
+
+		switch {
+		case errors.Is(err, collect.ErrNotImplemented):
+			// Not built yet is not a failure. It prints as absent, like a
+			// vendor with no credential, rather than as something gone wrong.
+			fmt.Fprintf(w, "  %s %-11s %s\n", caps.Dash(), v.ID,
+				caps.Dim("collector not implemented in this build"))
+		case err != nil:
+			var ve *collect.VendorError
+			if errors.As(err, &ve) {
+				problems = append(problems, ve)
+				fmt.Fprintf(w, "  %s %-11s %s\n", caps.Fail(), v.ID, ve.What)
+			} else {
+				fmt.Fprintf(w, "  %s %-11s %s\n", caps.Fail(), v.ID, err.Error())
+			}
+		default:
+			fmt.Fprintf(w, "  %s %-11s %s facts %s %s\n", caps.OK(), v.ID,
+				fmtutil.Tokens(int64(count)), caps.Sep(),
+				time.Since(started).Round(time.Millisecond/10).String())
+		}
+	}
+
+	if total == 0 && len(problems) == 0 {
+		// No usage is a finding, not an empty screen. An empty report would
+		// leave the reader unsure whether the tool worked.
+		fmt.Fprintf(w, "  %s\n",
+			caps.Dim("no usage reported in this window — try a wider one, e.g. --since 90d"))
+		return nil
+	}
+
+	if unpriced > 0 {
+		fmt.Fprintf(w, "\n  %s\n", caps.Dim(fmt.Sprintf(
+			"%d facts have no cost attached yet %s the price book and the vendor cost report are not wired up",
+			unpriced, caps.Sep())))
+	}
+	fmt.Fprintf(w, "\n  %s\n", caps.Dim("nothing was written to the database in this build"))
+
+	for _, ve := range problems {
+		fmt.Fprintf(w, "\n  %s %s\n  %s\n", ve.Vendor, ve.What, wrapIndent(ve.Why, 74, "  "))
+		if ve.Fix != "" {
+			fmt.Fprintf(w, "\n  Fix:  %s\n", ve.Fix)
+		}
+	}
+	return nil
+}
+
+// factLine is the one-line rendering used while the collectors are being built,
+// so the mapping can be eyeballed against a vendor dashboard.
+func factLine(f fact.Fact, caps ui.Caps) string {
+	parts := []string{
+		"fact ", f.Vendor, f.Day,
+		orDash(f.WorkspaceRef, caps), orDash(f.PrincipalRef, caps), orDash(f.ModelRef, caps),
+		"in=" + fmtutil.Tokens(f.InputUnits),
+		"out=" + fmtutil.Tokens(f.OutputUnits),
+	}
+	if f.CachedUnits > 0 {
+		parts = append(parts, "cached="+fmtutil.Tokens(f.CachedUnits))
+	}
+	if f.OtherUnits > 0 {
+		parts = append(parts, "other="+fmtutil.Tokens(f.OtherUnits))
+	}
+	parts = append(parts,
+		fmtutil.MoneyOrUnknown(f.AmountMicros, f.AmountBasis != fact.BasisUnknown),
+		string(f.AmountBasis))
+	return strings.Join(parts, "  ")
+}
+
+func orDash(s string, caps ui.Caps) string {
+	if s == "" {
+		return caps.Dash()
+	}
+	return s
+}
+
+// scanClient builds the HTTP client for this invocation: fixtures, or the
+// egress-guarded one, optionally wrapped to keep raw responses.
+func scanClient() (*http.Client, error) {
+	client := httpClient()
+	if !flagKeepRaw {
+		return client, nil
+	}
+	paths, err := resolvePaths()
+	if err != nil {
+		return nil, err
+	}
+	return egress.KeepRaw(client, paths.Raw), nil
 }

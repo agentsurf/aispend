@@ -13,6 +13,8 @@ import (
 
 	"github.com/prabhuvmk/aispend/internal/cred"
 	"github.com/prabhuvmk/aispend/internal/egress"
+	"github.com/prabhuvmk/aispend/internal/fact"
+	"github.com/prabhuvmk/aispend/internal/timerange"
 )
 
 const testKey = "sk-test-0000000000000000a4f2"
@@ -295,5 +297,199 @@ func TestTimeoutIsStillReportedAsConnectivity(t *testing.T) {
 	}
 	if !strings.Contains(ve.Why, "timed out") && !strings.Contains(ve.Why, "connection failed") {
 		t.Errorf("a timeout was not reported as connectivity: %q", ve.Why)
+	}
+}
+
+func openaiUsageBody(buckets string) string {
+	return `{"object":"page","data":[` + buckets + `],"has_more":false,"next_page":null}`
+}
+
+// 1787788800 = 2026-08-27T00:00:00Z, 1787875200 = 2026-08-28T00:00:00Z.
+const bucket27 = `{"object":"bucket","start_time":1787788800,"end_time":1787875200,"results":[
+	{"input_tokens":1204331,"output_tokens":84210,"input_cached_tokens":310880,
+	 "input_audio_tokens":4200,"output_audio_tokens":1100,"num_model_requests":4120,
+	 "project_id":"proj_a91f","api_key_id":"key_9f2a","user_id":null,"model":"gpt-5.2","batch":false}]}`
+
+func window(t *testing.T, since string) timerange.Range {
+	t.Helper()
+	r, err := timerange.Parse(since, time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	return r
+}
+
+func TestOpenAICollectMapsAUsageRow(t *testing.T) {
+	client, sent := serve(t, 200, openaiUsageBody(bucket27))
+
+	var got []fact.Fact
+	_, err := (&openAI{http: client}).Collect(context.Background(),
+		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
+		window(t, "1d"), "", func(f fact.Fact) error { got = append(got, f); return nil })
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d facts, want 1", len(got))
+	}
+
+	f := got[0]
+	checks := map[string][2]any{
+		"Day":          {f.Day, "2026-08-27"},
+		"WorkspaceRef": {f.WorkspaceRef, "proj_a91f"},
+		"PrincipalRef": {f.PrincipalRef, "key_9f2a"},
+		"ModelRef":     {f.ModelRef, "gpt-5.2"},
+		"InputUnits":   {f.InputUnits, int64(1204331)},
+		"OutputUnits":  {f.OutputUnits, int64(84210)},
+		"UnitKind":     {f.UnitKind, "token"},
+	}
+	for name, pair := range checks {
+		if pair[0] != pair[1] {
+			t.Errorf("%s = %v, want %v", name, pair[0], pair[1])
+		}
+	}
+
+	// Bearer auth, and the window sent as unix seconds — OpenAI's encoding,
+	// converted at this collector's own boundary.
+	if sent.Get("Authorization") != "Bearer "+testKey {
+		t.Errorf("Authorization = %q", sent.Get("Authorization"))
+	}
+}
+
+// Cached tokens are priced at a steep discount. Folded into input_units they
+// produce a number wrong by a margin that grows as the customer optimises —
+// exactly when they are checking your work.
+func TestOpenAICollectKeepsCachedTokensSeparate(t *testing.T) {
+	client, _ := serve(t, 200, openaiUsageBody(bucket27))
+
+	var f fact.Fact
+	_, err := (&openAI{http: client}).Collect(context.Background(),
+		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
+		window(t, "1d"), "", func(got fact.Fact) error { f = got; return nil })
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+
+	if f.CachedUnits != 310880 {
+		t.Errorf("CachedUnits = %d, want 310880", f.CachedUnits)
+	}
+	if f.InputUnits == 1204331+310880 {
+		t.Error("cached tokens were folded into input tokens")
+	}
+	// Audio tokens are billed on their own rates; dropping them would
+	// understate usage silently.
+	if f.OtherUnits != 4200+1100 {
+		t.Errorf("OtherUnits = %d, want the audio tokens (5300)", f.OtherUnits)
+	}
+}
+
+// Money comes from a different endpoint that cannot break spend down to model
+// level. Until that join exists, a fact says it does not know — it must never
+// claim zero.
+func TestOpenAICollectReportsCostAsUnknownNotZero(t *testing.T) {
+	client, _ := serve(t, 200, openaiUsageBody(bucket27))
+
+	var f fact.Fact
+	(&openAI{http: client}).Collect(context.Background(),
+		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
+		window(t, "1d"), "", func(got fact.Fact) error { f = got; return nil })
+
+	if f.AmountBasis != fact.BasisUnknown {
+		t.Errorf("AmountBasis = %q, want %q", f.AmountBasis, fact.BasisUnknown)
+	}
+	if f.AmountBasis == fact.BasisVendorReported && f.AmountMicros == 0 {
+		t.Error("a zero amount was labelled as vendor-reported")
+	}
+}
+
+// The requested window is the contract: a vendor bucket outside it must not
+// silently add a day the user did not ask for, because coverage tracking and
+// the prior-window delta both trust that stored days are collected days.
+func TestOpenAICollectDropsBucketsOutsideTheWindow(t *testing.T) {
+	outside := `{"object":"bucket","start_time":1787875200,"end_time":1787961600,"results":[
+		{"input_tokens":99,"output_tokens":9,"project_id":"p","api_key_id":"k","model":"m"}]}`
+	client, _ := serve(t, 200, openaiUsageBody(bucket27+","+outside))
+
+	var days []string
+	_, err := (&openAI{http: client}).Collect(context.Background(),
+		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
+		window(t, "1d"), "", func(f fact.Fact) error { days = append(days, f.Day); return nil })
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(days) != 1 || days[0] != "2026-08-27" {
+		t.Errorf("days = %v, want only 2026-08-27", days)
+	}
+}
+
+// A window with no usage is a finding, not a failure.
+func TestOpenAICollectWithNoUsage(t *testing.T) {
+	client, _ := serve(t, 200, `{"object":"page","data":[],"has_more":false,"next_page":null}`)
+
+	count := 0
+	_, err := (&openAI{http: client}).Collect(context.Background(),
+		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
+		window(t, "7d"), "", func(fact.Fact) error { count++; return nil })
+	if err != nil {
+		t.Fatalf("an empty window was an error: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("emitted %d facts from an empty response", count)
+	}
+}
+
+// emit writes straight through to the database in a later run, so an error from
+// it must stop the collection rather than be swallowed.
+func TestOpenAICollectStopsWhenEmitFails(t *testing.T) {
+	client, _ := serve(t, 200, openaiUsageBody(bucket27))
+
+	boom := errors.New("sink is full")
+	_, err := (&openAI{http: client}).Collect(context.Background(),
+		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
+		window(t, "1d"), "", func(fact.Fact) error { return boom })
+	if !errors.Is(err, boom) {
+		t.Errorf("Collect swallowed the emit error: %v", err)
+	}
+}
+
+// Every fact from one collection must be distinguishable, or the primary key
+// collapses rows that are genuinely different.
+func TestOpenAICollectGivesEachRowADistinctIdentity(t *testing.T) {
+	second := `{"object":"bucket","start_time":1787788800,"end_time":1787875200,"results":[
+		{"input_tokens":10,"output_tokens":1,"project_id":"proj_a91f","api_key_id":"key_9f2a","model":"gpt-5.2-mini"},
+		{"input_tokens":20,"output_tokens":2,"project_id":"proj_b72c","api_key_id":"key_c118","model":"gpt-5.2"}]}`
+	client, _ := serve(t, 200, openaiUsageBody(second))
+
+	seen := map[string]bool{}
+	_, err := (&openAI{http: client}).Collect(context.Background(),
+		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
+		window(t, "1d"), "", func(f fact.Fact) error {
+			if seen[f.ID()] {
+				t.Errorf("duplicate fact id for %s/%s", f.ModelRef, f.PrincipalRef)
+			}
+			seen[f.ID()] = true
+			return nil
+		})
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(seen) != 2 {
+		t.Errorf("got %d distinct facts, want 2", len(seen))
+	}
+}
+
+// "We have not built this" and "your credential was rejected" call for
+// different reactions, so they must be distinguishable by callers rather than
+// only by reading the message.
+func TestUnimplementedCollectorIsDistinguishable(t *testing.T) {
+	_, err := (&anthropic{}).Collect(context.Background(), cred.Credential{},
+		window(t, "1d"), "", func(fact.Fact) error { return nil })
+
+	if !errors.Is(err, ErrNotImplemented) {
+		t.Errorf("Collect error = %v, want it to wrap ErrNotImplemented", err)
+	}
+	var ve *VendorError
+	if errors.As(err, &ve) {
+		t.Error("an unimplemented collector reported itself as a vendor failure")
 	}
 }

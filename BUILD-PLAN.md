@@ -26,8 +26,10 @@ rewrite of history.
 - [x] **Run 7** — egress guard in the dialer + `scan --dry-run`
 - [x] **Run 8** — fixture mode (`--fixture`, persistent flag)
 - [x] **Run 9** — `Collector` interface + `Verify` + `doctor` vendors block
-- [ ] **Run 10** — OpenAI `Collect()`, one day, stdout only  ← next
-- [ ] Runs 11–26 below
+      *(live-network criterion deferred: no vendor admin key available on an individual plan)*
+- [x] **Run 10** — OpenAI `Collect()`, facts to stdout, `--keep-raw`, `fmtutil` started
+- [ ] **Run 11** — persist through the sink  ← next
+- [ ] Runs 12–26 below
 
 ---
 
@@ -658,7 +660,7 @@ and concludes the tool is broken. Nothing is written to the database; `Verify` o
 
 ---
 
-## Run 10 — OpenAI `Collect()`, one day, stdout only
+## Run 10 — OpenAI `Collect()`, one day, stdout only ✅
 
 **Build:** `Collect` streaming facts through an `emit` callback, mapping OpenAI's response onto the
 `usage_fact` shape. Deliberately **not persisted yet**, so you can eyeball the mapping against the raw
@@ -674,13 +676,26 @@ AISPEND_HOME=/tmp/as4 ./aispend scan --since 1d && sqlite3 /tmp/as4/aispend.db "
 
 **Success criteria**
 1. `make check` clean.
-2. One `fact` line per row: `fact  openai 2026-08-27 proj_a91f gpt-5.2  in=1.2M out=84K  $41.20 vendor_reported`.
-3. Spot-check two facts against the OpenAI dashboard for the same day — model, tokens and cost agree.
+2. One `fact` line per row: `fact  openai 2026-08-27 proj_a91f key_9f2a gpt-5.2  in=1.2M out=84.2K
+   cached=311K  — unknown`.
+3. *(Deferred — needs a vendor key.)* Spot-check two facts against the OpenAI dashboard for the same
+   day: model and tokens agree.
+
+**Scope correction, declared.** Criterion 2 originally ended `$41.20 vendor_reported`. It cannot: OpenAI's
+usage and cost endpoints are separate, and the cost endpoint cannot break spend down to model level.
+Joining them *is* allocation, which the design itself places at step 17 (run 16). So every fact from this
+run carries `amount_basis = 'unknown'` with a zero amount and renders as an em dash — which is the
+design's own rule for an unpriced fact, not a shortcut. `$0.00` here would silently understate the total.
 4. `cached_units` is populated separately from `input_units` where OpenAI reports it.
 5. Fact count is 0 for a day with no usage, and the tool says "no usage in this range" rather than
    printing an empty report.
 6. Database row count is still **0** — this run doesn't persist.
-7. `--keep-raw` writes to `~/.aispend/raw/` at `0700`, and that directory does not exist without the flag.
+7. `--keep-raw` writes to `~/.aispend/raw/` at `0700` with `0600` files, and that directory does not
+   exist without the flag. Failing to save a copy must never fail the collection.
+8. A vendor bucket dated outside the requested window is **dropped**, with a debug line saying so. The
+   window is the contract, and coverage tracking in run 12 trusts that stored days are collected days.
+9. Token humanising rounds in integer arithmetic: `Tokens(1450)` is `1.5K`. Dividing in float first
+   yields 1.4499999999999999556, which prints `1.4K`.
 
 
 **Outcome.** Real usage data reaches the terminal. `Collect` streams facts through an `emit`
