@@ -37,8 +37,10 @@ rewrite of history.
 - [x] **Run 17** — `BY MODEL` and every `--by` dimension
 - [x] **Run 18** — sparklines, prior-window deltas, ASCII fallback
 - [x] **Run 19** — OpenRouter collector (the only vendor-reported cost in v1)
-- [ ] **Run 20** — `owners.csv` and `--by team`  ← next
-- [ ] Runs 21–26 below
+- [x] **Run 20** — `owners.csv`, `--by team`, the loud Unattributed line
+- [x] **Run 21** — surprise rules, the `⚠` block and the `Next` line
+- [ ] **Run 22** — `--json` / `--csv` / `export`  ← next
+- [ ] Runs 23–26 below
 
 ---
 
@@ -1058,7 +1060,7 @@ collectors depend on.
 
 ---
 
-## Run 20 — attribution · **the run that demos the thesis**
+## Run 20 — attribution · **the run that demos the thesis** ✅
 
 **Build:** optional `~/.aispend/owners.csv`, `--by team`, and the loud **Unattributed** line. No mapping
 UI. A prospect seeing `Unattributed  $12,024  (79%)  31 keys` has understood the product without you
@@ -1091,7 +1093,7 @@ file that may or may not exist, and a number that is compelling either way.
 
 ---
 
-## Run 21 — the surprise engine
+## Run 21 — the surprise engine ✅
 
 **Build:** four rules from design §6.1, each a query plus a threshold plus a sentence. Ranked, top three
 shown. The whole validation thesis is whether the number surprises them, so compute the surprises rather
@@ -1110,6 +1112,9 @@ go test ./internal/analytics/ -v
 2. `⚠ 3 things worth a look` with three specific, numeric sentences — each naming the figures behind it.
 3. Rules are ranked; changing the window changes which rules fire.
 4. Nothing fires on data where nothing is unusual — the block is **absent**, not empty-with-a-header.
+   Verified against four keys at 25% each, flat spend, fully attributed. Two threshold bugs were found
+   this way: concentration measured against a fixed 20% called all four keys dominant, and the
+   premium-rate threshold was wrong by a factor of a thousand, so it fired on everything.
 5. Each rule has a unit test with a fixture that triggers it and one that doesn't.
 6. No rule names a prompt, a user, or a full key — truncated identifiers only.
 7. The report ends with the design §6.1 `Next` line — `aispend usage --by team   aispend export --share

@@ -3,14 +3,18 @@ package cli
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/prabhuvmk/aispend/internal/analytics"
 	"github.com/prabhuvmk/aispend/internal/catalog"
+	"github.com/prabhuvmk/aispend/internal/config"
 	"github.com/prabhuvmk/aispend/internal/egress"
 	"github.com/prabhuvmk/aispend/internal/fmtutil"
+	"github.com/prabhuvmk/aispend/internal/owners"
 	"github.com/prabhuvmk/aispend/internal/sink"
 	"github.com/prabhuvmk/aispend/internal/store"
 	"github.com/prabhuvmk/aispend/internal/timerange"
@@ -54,7 +58,7 @@ view is instant and costs nothing.`,
 	cmd.Flags().BoolVar(&flagDetail, "detail", false, "show every row, with no truncation")
 	cmd.Flags().StringVar(&flagVendor, "vendor", "", "report on one vendor only")
 	cmd.Flags().StringVar(&flagBy, "by", "",
-		"break spend down by one dimension: "+strings.Join(store.GroupByNames(), ", "))
+		"break spend down by one dimension: team, "+strings.Join(store.GroupByNames(), ", "))
 	return cmd
 }
 
@@ -117,14 +121,36 @@ func renderUsage(w io.Writer, caps ui.Caps, db *store.DB, dest sink.Sink, r time
 		}{{store.GroupBy(flagBy), "BY " + strings.ToUpper(flagBy)}}
 	}
 
-	for _, v := range views {
-		if err := writeGroup(w, caps, db, v.by, v.title, filter, t); err != nil {
+	if flagBy == "team" {
+		if err := writeTeams(w, caps, db, filter, t); err != nil {
 			return err
+		}
+	} else {
+		for _, v := range views {
+			if err := writeGroup(w, caps, db, v.by, v.title, filter, t); err != nil {
+				return err
+			}
 		}
 	}
 
+	if err := writeAttribution(w, caps, db, filter, t); err != nil {
+		return err
+	}
+
+	if err := writeSurprises(w, caps, db, filter, r, t); err != nil {
+		return err
+	}
+
 	fmt.Fprintln(w)
-	return writeFooter(w, caps, db, filter, dest, r, t)
+	if err := writeFooter(w, caps, db, filter, dest, r, t); err != nil {
+		return err
+	}
+
+	// The three commands that continue the conversation. Cheap, and it is what
+	// turns a printed number into the next five minutes of a demo.
+	fmt.Fprintf(w, "\n  %-9s %s\n", "Next",
+		caps.Dim("aispend usage --by team    aispend export --share    aispend purge"))
+	return nil
 }
 
 // maxRows is how many rows a summary view shows before collapsing the rest into
@@ -321,6 +347,231 @@ func writeFooter(w io.Writer, caps ui.Caps, db *store.DB, filter store.Filter,
 	return nil
 }
 
+// writeSurprises computes the things worth looking at, rather than hoping the
+// reader spots them.
+//
+// The whole validation exercise turns on whether the number surprises someone,
+// so the surprises are computed. When nothing is unusual the block is absent
+// entirely — not an empty heading, which would read as a tool that found
+// nothing to say.
+func writeSurprises(w io.Writer, caps ui.Caps, db *store.DB, filter store.Filter,
+	r timerange.Range, t store.Totals) error {
+
+	if t.Facts == 0 || t.Priced == 0 {
+		return nil
+	}
+
+	in, err := gatherSurpriseInput(db, filter, r, t)
+	if err != nil {
+		return err
+	}
+
+	found := analytics.Top(in, 3)
+	if len(found) == 0 {
+		return nil
+	}
+
+	fmt.Fprintf(w, "\n  %s  %d %s worth a look\n", caps.Warn(), len(found),
+		plural(len(found), "thing", "things"))
+	for _, s := range found {
+		fmt.Fprintf(w, "     %s %s\n", bullet(caps), s.Text)
+	}
+	return nil
+}
+
+func bullet(caps ui.Caps) string {
+	if caps.UTF8 {
+		return "·"
+	}
+	return "-"
+}
+
+// gatherSurpriseInput reads everything the rules need in one place, so each rule
+// stays a threshold and a sentence.
+func gatherSurpriseInput(db *store.DB, filter store.Filter, r timerange.Range,
+	t store.Totals) (analytics.Input, error) {
+
+	in := analytics.Input{Window: r, Totals: t}
+
+	var err error
+	if in.Vendors, err = db.GroupBy(store.ByVendor, filter); err != nil {
+		return in, err
+	}
+	if in.Models, err = db.GroupBy(store.ByModel, filter); err != nil {
+		return in, err
+	}
+	if in.Keys, err = db.GroupBy(store.ByKey, filter); err != nil {
+		return in, err
+	}
+
+	if prior, err := db.Totals(store.Filter{
+		From: r.PriorFrom(), To: r.PriorTo(), Vendor: filter.Vendor,
+	}); err == nil {
+		in.PriorTotal = prior.Micros
+	}
+
+	// Split the window in half, so a trend can be detected inside whatever
+	// range the reader asked for rather than only against a prior window that
+	// may hold no data.
+	mid := r.From.AddDate(0, 0, r.Days()/2)
+	in.EarlierVendors, err = vendorTotals(db, store.Filter{
+		From: r.FromDay(), To: mid.AddDate(0, 0, -1).Format("2006-01-02"), Vendor: filter.Vendor})
+	if err != nil {
+		return in, err
+	}
+	in.RecentVendors, err = vendorTotals(db, store.Filter{
+		From: mid.Format("2006-01-02"), To: r.ToDay(), Vendor: filter.Vendor})
+	if err != nil {
+		return in, err
+	}
+
+	m, err := loadOwners()
+	if err != nil {
+		return in, err
+	}
+	for _, k := range in.Keys {
+		if m.Team(k.Vendor, k.Key) == owners.Unattributed {
+			in.Unattributed += k.Micros
+			in.UnattributedKeys++
+		}
+	}
+	return in, nil
+}
+
+func vendorTotals(db *store.DB, filter store.Filter) (map[string]int64, error) {
+	groups, err := db.GroupBy(store.ByVendor, filter)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]int64{}
+	for _, g := range groups {
+		out[g.Key] = g.Micros
+	}
+	return out, nil
+}
+
+// writeAttribution is the block that demonstrates the product thesis without a
+// word of pitch.
+//
+// With no owners.csv, everything lands in Unattributed and it is displayed
+// loudly. A reader seeing "Unattributed $12,024 (78%) across 31 keys" has just
+// understood what the product is for.
+func writeAttribution(w io.Writer, caps ui.Caps, db *store.DB, filter store.Filter, t store.Totals) error {
+	if t.Facts == 0 {
+		return nil
+	}
+
+	m, err := loadOwners()
+	if err != nil {
+		return err
+	}
+
+	keys, err := db.GroupBy(store.ByKey, filter)
+	if err != nil {
+		return err
+	}
+
+	var mapped, unmapped int64
+	var mappedKeys, unmappedKeys int
+	for _, g := range keys {
+		vendor, principal := splitKeyRow(g)
+		if m.Team(vendor, principal) == owners.Unattributed {
+			unmapped += g.Micros
+			unmappedKeys++
+			continue
+		}
+		mapped += g.Micros
+		mappedKeys++
+	}
+
+	fmt.Fprintf(w, "\n  ATTRIBUTION\n")
+	fmt.Fprintf(w, "  %-34s  %12s  %7s\n", "Mapped to a team",
+		fmtutil.MoneyOrUnknown(mapped, t.Priced > 0), sharePct(mapped, t.Micros, t.Micros > 0))
+
+	label := fmt.Sprintf("%-34s", owners.Unattributed)
+	detail := fmt.Sprintf("%d %s", unmappedKeys, plural(unmappedKeys, "key", "keys"))
+	fmt.Fprintf(w, "  %s  %12s  %7s   %s\n", label,
+		fmtutil.MoneyOrUnknown(unmapped, t.Priced > 0),
+		sharePct(unmapped, t.Micros, t.Micros > 0), caps.Dim(detail))
+
+	if !m.Loaded {
+		fmt.Fprintf(w, "  %s\n", caps.Dim(
+			"no owners.csv yet — drop one in "+config.Display(ownersPath())+" to split this by team"))
+	}
+	for _, warning := range m.Warnings {
+		fmt.Fprintf(w, "  %s %s\n", caps.Warn(), warning)
+	}
+	return nil
+}
+
+// writeTeams renders --by team, which needs the owners map rather than a
+// database column.
+func writeTeams(w io.Writer, caps ui.Caps, db *store.DB, filter store.Filter, t store.Totals) error {
+	m, err := loadOwners()
+	if err != nil {
+		return err
+	}
+
+	keys, err := db.GroupBy(store.ByKey, filter)
+	if err != nil {
+		return err
+	}
+
+	byTeam := map[string]*store.Group{}
+	for _, g := range keys {
+		vendor, principal := splitKeyRow(g)
+		team := m.Team(vendor, principal)
+		if byTeam[team] == nil {
+			byTeam[team] = &store.Group{Key: team}
+		}
+		byTeam[team].Micros += g.Micros
+		byTeam[team].Facts += g.Facts
+		byTeam[team].Priced += g.Priced
+	}
+
+	rows := make([]store.Group, 0, len(byTeam))
+	for _, g := range byTeam {
+		rows = append(rows, *g)
+	}
+	// Descending by spend, but Unattributed last regardless of size: it is a
+	// gap in the data, not a team, and sorting it into the middle of a list of
+	// teams reads as though it were one.
+	sort.Slice(rows, func(i, j int) bool {
+		if (rows[i].Key == owners.Unattributed) != (rows[j].Key == owners.Unattributed) {
+			return rows[j].Key == owners.Unattributed
+		}
+		return rows[i].Micros > rows[j].Micros
+	})
+
+	fmt.Fprintf(w, "\n  BY TEAM\n")
+	for _, g := range rows {
+		fmt.Fprintf(w, "  %-34s  %12s  %7s\n", g.Key,
+			fmtutil.MoneyOrUnknown(g.Micros, g.Priced > 0),
+			sharePct(g.Micros, t.Micros, t.Micros > 0))
+	}
+	fmt.Fprintf(w, "  %s\n", caps.Dim(strings.Repeat(lineRune(caps), 57)))
+	fmt.Fprintf(w, "  %-34s  %12s\n", "", fmtutil.MoneyOrUnknown(t.Micros, t.Priced > 0))
+	return nil
+}
+
+// splitKeyRow recovers the vendor for a key row. The key grouping collapses
+// vendors, so the vendor is looked up from the underlying facts.
+func splitKeyRow(g store.Group) (vendor, principal string) {
+	return g.Vendor, g.Key
+}
+
+func ownersPath() string {
+	paths, err := config.Resolve()
+	if err != nil {
+		return "~/.aispend/owners.csv"
+	}
+	return paths.Owners
+}
+
+func loadOwners() (*owners.Map, error) {
+	return owners.Load(ownersPath())
+}
+
 // rangeText renders the date range for terminals that cannot draw an en dash.
 // A header full of mojibake is a poor first impression in the one place a
 // stranger decides whether to keep reading.
@@ -333,6 +584,9 @@ func rangeText(r timerange.Range, caps ui.Caps) string {
 
 // validateFlags checks the display flags before any output is produced.
 func validateFlags() error {
+	if flagBy == "team" {
+		return nil // resolved from owners.csv rather than a database column
+	}
 	if flagBy != "" && !store.GroupBy(flagBy).Valid() {
 		return fmt.Errorf("unknown --by %q\n\n  Valid values: %s",
 			flagBy, strings.Join(store.GroupByNames(), ", "))

@@ -294,7 +294,11 @@ func (d *DB) Totals(f Filter) (Totals, error) {
 
 // Group is one row of a grouped report.
 type Group struct {
-	Key    string // vendor, model, key, project or day
+	Key string // vendor, model, key, project or day
+	// Vendor is which vendor the row belongs to, where the grouping leaves one
+	// unambiguous. A key or project belongs to exactly one vendor; a model can
+	// appear under several, and then this is empty.
+	Vendor string
 	Micros int64
 	Facts  int
 	Priced int
@@ -377,6 +381,7 @@ func (d *DB) GroupBy(g GroupBy, f Filter) ([]Group, error) {
 
 	rows, err := d.sql.Query(latestCTE+`
 		SELECT `+col+` AS key,
+		  CASE WHEN count(DISTINCT vendor) = 1 THEN min(vendor) ELSE '' END AS vendor,
 		  COALESCE(sum(CASE WHEN amount_basis <> 'unknown' THEN amount_micros ELSE 0 END), 0) AS micros,
 		  count(*),
 		  COALESCE(sum(CASE WHEN amount_basis <> 'unknown' THEN 1 ELSE 0 END), 0),
@@ -394,7 +399,7 @@ func (d *DB) GroupBy(g GroupBy, f Filter) ([]Group, error) {
 	var out []Group
 	for rows.Next() {
 		var g Group
-		if err := rows.Scan(&g.Key, &g.Micros, &g.Facts, &g.Priced,
+		if err := rows.Scan(&g.Key, &g.Vendor, &g.Micros, &g.Facts, &g.Priced,
 			&g.Units, &g.Input, &g.Output, &g.Cached); err != nil {
 			return nil, err
 		}
