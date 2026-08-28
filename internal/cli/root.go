@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"strconv"
 
@@ -10,6 +10,7 @@ import (
 	"github.com/prabhuvmk/aispend/internal/buildinfo"
 	"github.com/prabhuvmk/aispend/internal/config"
 	"github.com/prabhuvmk/aispend/internal/dbg"
+	"github.com/prabhuvmk/aispend/internal/redact"
 )
 
 var (
@@ -32,7 +33,8 @@ func newRootCmd() *cobra.Command {
 
 Nothing leaves this machine. Credentials are read from the environment or your OS
 keychain and are never written to the database, a config file, or any output.`,
-		SilenceUsage:  true,
+		SilenceUsage: true,
+		// Errors are printed by cobra, through the redacting writer set below.
 		SilenceErrors: false,
 		Version:       buildinfo.Version,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -108,11 +110,22 @@ func applyDebug(cmd *cobra.Command, file config.File) {
 
 // Execute runs the CLI. main() turns a non-nil return into exit code 1.
 func Execute() error {
-	if err := newRootCmd().Execute(); err != nil {
-		// Errors already reached stderr through cobra; this keeps the shape for
-		// the error-message pass in a later run.
-		_ = fmt.Sprint(err)
-		return err
+	root := newRootCmd()
+
+	// Every byte the tool prints goes through the redacting writer. Nothing
+	// upstream is supposed to print a credential, and this is what catches the
+	// path nobody thought about.
+	root.SetOut(redact.New(os.Stdout))
+	root.SetErr(redact.New(os.Stderr))
+
+	err := root.Execute()
+	if err != nil && err.Error() == "" {
+		// A command that has already explained itself in full. Exit non-zero
+		// without cobra printing an empty "Error:" line beneath it.
+		return errQuiet
 	}
-	return nil
+	return err
 }
+
+// errQuiet is a failure whose message has already been printed.
+var errQuiet = errors.New("aispend exited with an error")

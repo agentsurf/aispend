@@ -26,7 +26,7 @@ operating system's credential store.
 The key is never written to the database, a config file, or any output. It is
 verified before it is stored, so a key that does not work is refused rather than
 saved for you to discover later.`,
-		Args: cobra.ExactArgs(1),
+		Args: exactlyOneVendor,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			vendor, ok := catalog.Get(args[0])
 			if !ok {
@@ -149,6 +149,25 @@ func recordConnection(vendor string, info collect.AccountInfo, c cred.Credential
 	})
 }
 
+// exactlyOneVendor replaces cobra's "accepts 1 arg(s), received 0" with a
+// message that says what to type. An error is a UX surface, and the generic
+// one leaves the reader to go and find the vendor list themselves.
+func exactlyOneVendor(cmd *cobra.Command, args []string) error {
+	if len(args) == 1 {
+		return nil
+	}
+	var names []string
+	for _, v := range catalog.Vendors() {
+		names = append(names, v.ID)
+	}
+	verb := "needs a vendor"
+	if len(args) > 1 {
+		verb = "takes one vendor at a time"
+	}
+	return fmt.Errorf("%s %s\n\n  Try:  aispend %s %s",
+		cmd.Name(), verb, cmd.Name(), names[0])
+}
+
 func unknownVendor(name string) error {
 	var names []string
 	for _, v := range catalog.Vendors() {
@@ -164,7 +183,7 @@ func newDisconnectCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "disconnect <vendor>",
 		Short: "Remove a vendor credential from your OS keychain",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactlyOneVendor,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			vendor, ok := catalog.Get(args[0])
 			if !ok {

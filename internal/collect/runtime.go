@@ -3,8 +3,10 @@ package collect
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"time"
@@ -144,7 +146,23 @@ func Run(ctx context.Context, jobs []Job, maxParallel int) []Result {
 			defer func() { <-sem }()
 
 			started := time.Now()
-			cursor, err := job.Run(ctx)
+
+			// A panic in one vendor's collector must not take the process down
+			// with it: the other vendors' results are still worth having, and
+			// a crash report is a worse answer than "anthropic failed, here is
+			// openai". main() cannot recover this — a panic in a goroutine is
+			// only recoverable inside that goroutine.
+			var cursor string
+			var err error
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						err = fmt.Errorf("%s collector crashed: %v", job.Vendor, r)
+						dbg.Printf("%s panicked: %v\n%s", job.Vendor, r, debug.Stack())
+					}
+				}()
+				cursor, err = job.Run(ctx)
+			}()
 			results[i] = Result{
 				Vendor: job.Vendor, Facts: job.Count(), Cursor: cursor,
 				Err: err, Took: time.Since(started),

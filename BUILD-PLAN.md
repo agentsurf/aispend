@@ -42,8 +42,12 @@ rewrite of history.
 - [x] **Run 22** — `--json` / `--csv` / `export`
 - [x] **Run 23** — `connect`, `disconnect`, `purge`, keychain via go-keyring
 - [x] **Run 24** — `export --share` and the `surprised?` prompt
-- [ ] **Run 25** — error pass + redacting writer  ← next
-- [ ] **Run 26** — README + release
+- [x] **Run 25** — error pass, redacting writer, panic and goroutine recovery
+- [x] **Run 26** — README (security first), LICENSE, five-target release
+
+**All 26 runs complete.** What remains is design §12's last criterion, which no
+amount of code satisfies: someone who is not you, running it unaided, on a
+machine you did not set up.
 
 ---
 
@@ -1232,7 +1236,7 @@ literally the metric the exercise exists to measure.
 
 ---
 
-## Run 25 — errors and the redacting writer
+## Run 25 — errors and the redacting writer ✅
 
 **Build:** every failure gets the what/why/fix shape from design §6.6, plus a redacting `io.Writer` on
 stdout and stderr that scrubs credential-shaped strings — **including in panic output**.
@@ -1265,7 +1269,7 @@ abandon after the first confusing message.
 
 ---
 
-## Run 26 — README and release
+## Run 26 — README and release ✅
 
 **Build:** README with the **security section above the install instructions** (it's what gets the binary
 run), cross-compilation to 5 targets, checksums, `cosign` signatures, GitHub Release.

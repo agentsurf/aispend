@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/prabhuvmk/aispend/internal/buildinfo"
+	"github.com/prabhuvmk/aispend/internal/cred"
 	"github.com/prabhuvmk/aispend/internal/fact"
 	"github.com/prabhuvmk/aispend/internal/sink"
 	"github.com/prabhuvmk/aispend/internal/store"
@@ -23,6 +24,7 @@ func newDebugCmd() *cobra.Command {
 		Hidden: true,
 	}
 	cmd.AddCommand(newDebugSeedCmd())
+	cmd.AddCommand(newDebugPanicCmd())
 	return cmd
 }
 
@@ -133,4 +135,35 @@ func openDB() (*store.DB, error) {
 		return nil, err
 	}
 	return store.Open(paths.DB)
+}
+
+// newDebugPanicCmd panics while holding a credential, so the redacting writer
+// can be demonstrated rather than merely asserted. A test that only checks the
+// regex proves the regex works; this proves the wiring does.
+func newDebugPanicCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:    "panic",
+		Short:  "Panic while holding a credential, to exercise the redacting writer",
+		Hidden: true,
+		Args:   cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			type holder struct {
+				Vendor string
+				Key    string
+			}
+			h := holder{Vendor: "openai", Key: firstCredential()}
+			panic(fmt.Sprintf("deliberate panic while holding %+v", h))
+		},
+	}
+}
+
+// firstCredential returns whatever credential is configured, so the planted
+// value in a test is a real one rather than a literal in the source.
+func firstCredential() string {
+	for _, c := range cred.ResolveAll() {
+		if !c.Empty() {
+			return c.Secret()
+		}
+	}
+	return "sk-none-configured"
 }

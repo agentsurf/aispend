@@ -600,7 +600,7 @@ func validateFlags() error {
 		return nil // resolved from owners.csv rather than a database column
 	}
 	if flagBy != "" && !store.GroupBy(flagBy).Valid() {
-		return fmt.Errorf("unknown --by %q\n\n  Valid values: %s",
+		return fmt.Errorf("unknown --by %q\n\n  Valid values: team, %s",
 			flagBy, strings.Join(store.GroupByNames(), ", "))
 	}
 	if flagVendor != "" {
