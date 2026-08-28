@@ -10,6 +10,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/prabhuvmk/aispend/internal/dbg"
 	"github.com/prabhuvmk/aispend/internal/fact"
@@ -53,11 +54,17 @@ ON CONFLICT DO NOTHING`
 
 // Write inserts a batch in one transaction.
 //
-// ON CONFLICT DO NOTHING makes re-collection of an overlapping window free: the
-// primary key already identifies the fact, so a scan run twice produces the same
-// row count and the same total. Restatements — where the vendor reports
-// different numbers for a day it already reported — append a new revision
-// instead, which arrives with the backfill logic that needs it.
+// Two behaviours share this path, and the difference between them is the whole
+// point of the revision column:
+//
+//   - Re-collecting an identical fact is free. The primary key already
+//     identifies it, so a scan run twice produces the same row count and the
+//     same total. Every sync re-pulls a trailing window, so this is the common
+//     case, not an edge case.
+//   - A *restatement* — the vendor reporting different numbers for a day it
+//     already reported — appends a new revision rather than overwriting. The
+//     old figure stays on disk, so "our number changed because the vendor
+//     restated on the 14th" is an answer. "Our number changed" is not.
 func (s *SQLiteSink) Write(ctx context.Context, facts []fact.Fact) error {
 	if len(facts) == 0 {
 		return nil
@@ -75,7 +82,7 @@ func (s *SQLiteSink) Write(ctx context.Context, facts []fact.Fact) error {
 	}
 	defer stmt.Close()
 
-	var written int64
+	var written, restated int64
 	for _, f := range facts {
 		res, err := stmt.ExecContext(ctx,
 			f.ID(), f.Vendor, f.Day, f.WorkspaceRef, f.PrincipalRef, f.ModelRef,
@@ -86,16 +93,76 @@ func (s *SQLiteSink) Write(ctx context.Context, facts []fact.Fact) error {
 		if err != nil {
 			return fmt.Errorf("writing %s %s %s: %w", f.Vendor, f.Day, f.ModelRef, err)
 		}
-		n, _ := res.RowsAffected()
-		written += n
+
+		if n, _ := res.RowsAffected(); n > 0 {
+			written += n
+			continue
+		}
+
+		// The row already exists. Either it is identical — the common case, and
+		// nothing to do — or the vendor has restated the day.
+		changed, err := differs(ctx, tx, f)
+		if err != nil {
+			return err
+		}
+		if !changed {
+			continue
+		}
+		if err := insertRevision(ctx, tx, f); err != nil {
+			return err
+		}
+		restated++
 	}
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("cannot commit %d facts: %w", len(facts), err)
 	}
-	dbg.Printf("sink wrote %d of %d facts (%d were already present)",
-		written, len(facts), int64(len(facts))-written)
+	dbg.Printf("sink wrote %d of %d facts (%d already present, %d restated)",
+		written, len(facts), int64(len(facts))-written-restated, restated)
 	return nil
+}
+
+// differs reports whether the stored latest revision of this fact disagrees
+// with what the vendor is reporting now.
+func differs(ctx context.Context, tx *sql.Tx, f fact.Fact) (bool, error) {
+	var in, out, cached, other, amount int64
+	var basis string
+
+	err := tx.QueryRowContext(ctx, `
+		SELECT input_units, output_units, cached_units, other_units, amount_micros, amount_basis
+		FROM usage_fact
+		WHERE vendor=? AND day=? AND workspace_ref=? AND principal_ref=? AND model_ref=?
+		ORDER BY revision DESC LIMIT 1`,
+		f.Vendor, f.Day, f.WorkspaceRef, f.PrincipalRef, f.ModelRef,
+	).Scan(&in, &out, &cached, &other, &amount, &basis)
+	if err != nil {
+		return false, fmt.Errorf("reading existing %s %s: %w", f.Vendor, f.Day, err)
+	}
+
+	return in != f.InputUnits || out != f.OutputUnits || cached != f.CachedUnits ||
+		other != f.OtherUnits || amount != f.AmountMicros || basis != string(f.AmountBasis), nil
+}
+
+// insertRevision appends the restated fact as the next revision, leaving the
+// previous one on disk as the audit trail.
+func insertRevision(ctx context.Context, tx *sql.Tx, f fact.Fact) error {
+	var next int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(max(revision), 0) + 1 FROM usage_fact
+		WHERE vendor=? AND day=? AND workspace_ref=? AND principal_ref=? AND model_ref=?`,
+		f.Vendor, f.Day, f.WorkspaceRef, f.PrincipalRef, f.ModelRef,
+	).Scan(&next); err != nil {
+		return err
+	}
+
+	dbg.Printf("%s restated %s %s: writing revision %d", f.Vendor, f.Day, f.ModelRef, next)
+
+	_, err := tx.ExecContext(ctx, insertFact,
+		f.ID(), f.Vendor, f.Day, f.WorkspaceRef, f.PrincipalRef, f.ModelRef,
+		f.InputUnits, f.OutputUnits, f.CachedUnits, f.OtherUnits, f.UnitKind,
+		f.AmountMicros, string(f.AmountBasis), f.PriceVersion, next,
+		f.CollectedAt.UTC().Unix())
+	return err
 }
 
 // Flush is a no-op: every Write already committed.
@@ -103,3 +170,97 @@ func (s *SQLiteSink) Flush(context.Context) error { return nil }
 
 // Describe reports the destination for the Privacy footer.
 func (s *SQLiteSink) Describe() string { return "the local database on this machine" }
+
+// MultiSink writes to several destinations.
+//
+// v1 never builds one — SQLite is the only sink. It exists because the sidecar
+// posture fans the same collector output out to a control plane, and because
+// the report's Privacy footer is generated from what the sinks say about
+// themselves: with two sinks configured, "nothing left this machine" stops
+// being true, and the footer has to stop saying it on its own.
+type MultiSink []Sink
+
+func (m MultiSink) Write(ctx context.Context, facts []fact.Fact) error {
+	for _, s := range m {
+		if err := s.Write(ctx, facts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m MultiSink) Flush(ctx context.Context) error {
+	for _, s := range m {
+		if err := s.Flush(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m MultiSink) Describe() string {
+	parts := make([]string, 0, len(m))
+	for _, s := range m {
+		parts = append(parts, s.Describe())
+	}
+	return strings.Join(parts, " and ")
+}
+
+// Local reports whether every destination is on this machine. The Privacy
+// footer asks the sinks rather than assuming, so the claim cannot outlive the
+// configuration that made it true.
+func Local(s Sink) bool {
+	switch v := s.(type) {
+	case *SQLiteSink:
+		return true
+	case MultiSink:
+		for _, child := range v {
+			if !Local(child) {
+				return false
+			}
+		}
+		return true
+	default:
+		// An unrecognised sink is assumed to leave the machine. Guessing the
+		// other way would let a new sink silently inherit the privacy claim.
+		return false
+	}
+}
+
+// Batcher buffers facts and writes them in groups, so a long backfill does not
+// hold everything in memory and a partial failure still persists what it got.
+type Batcher struct {
+	sink Sink
+	size int
+	buf  []fact.Fact
+}
+
+// NewBatcher wraps a sink. size is the number of facts per transaction.
+func NewBatcher(s Sink, size int) *Batcher {
+	if size < 1 {
+		size = 500
+	}
+	return &Batcher{sink: s, size: size}
+}
+
+// Add buffers one fact, writing when the batch is full.
+func (b *Batcher) Add(ctx context.Context, f fact.Fact) error {
+	b.buf = append(b.buf, f)
+	if len(b.buf) < b.size {
+		return nil
+	}
+	return b.Flush(ctx)
+}
+
+// Flush writes whatever is buffered.
+func (b *Batcher) Flush(ctx context.Context) error {
+	if len(b.buf) == 0 {
+		return nil
+	}
+	batch := b.buf
+	b.buf = nil
+	return b.sink.Write(ctx, batch)
+}
+
+// Pending is how many facts are buffered but not yet written.
+func (b *Batcher) Pending() int { return len(b.buf) }

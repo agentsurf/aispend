@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prabhuvmk/aispend/internal/catalog"
@@ -32,6 +34,45 @@ func (e *BlockedError) Error() string {
 
 // AllowFunc decides whether a host may be contacted.
 type AllowFunc func(host string) bool
+
+// contacted records which hosts this process actually reached.
+//
+// The report's Privacy line is generated from this rather than from the
+// allowlist, because "hosts we are permitted to contact" and "hosts we
+// contacted" are different claims and only the second one is what the reader is
+// being told. An offline command must be able to say it used no network at all
+// — and with fixture mode that statement is verifiable by unplugging the
+// machine.
+var contacted = struct {
+	sync.Mutex
+	hosts map[string]bool
+}{hosts: map[string]bool{}}
+
+// Contacted returns the hosts reached so far, sorted.
+func Contacted() []string {
+	contacted.Lock()
+	defer contacted.Unlock()
+
+	out := make([]string, 0, len(contacted.hosts))
+	for h := range contacted.hosts {
+		out = append(out, h)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ResetContacted clears the record. Tests use it; nothing else should.
+func ResetContacted() {
+	contacted.Lock()
+	defer contacted.Unlock()
+	contacted.hosts = map[string]bool{}
+}
+
+func recordContact(host string) {
+	contacted.Lock()
+	defer contacted.Unlock()
+	contacted.hosts[host] = true
+}
 
 // New returns an HTTP client that can only reach catalog hosts.
 //
@@ -105,6 +146,7 @@ func (g *guard) RoundTrip(req *http.Request) (*http.Response, error) {
 			req.URL.Path, req.URL.Scheme)
 	}
 	dbg.Printf("%s %s", req.Method, req.URL.Redacted())
+	recordContact(host)
 	return g.base.RoundTrip(req)
 }
 

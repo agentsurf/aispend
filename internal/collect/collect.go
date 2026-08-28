@@ -28,14 +28,37 @@ type Collector interface {
 	// actually see. It writes nothing, and it is what `doctor` runs.
 	Verify(ctx context.Context, c cred.Credential) (AccountInfo, error)
 
-	// Collect fetches facts for the window and streams them to emit.
+	// Collect fetches facts for the window and streams them to the emitter.
 	//
-	// emit is a callback rather than a returned slice so a collector writes
-	// through to the database as it goes: a partial failure keeps what it got,
-	// and a 30-day backfill never holds 30 days of facts in memory.
+	// Streaming rather than returning a slice means a collector writes through
+	// to the database as it goes: a partial failure keeps what it got, and a
+	// 30-day backfill never holds 30 days of facts in memory.
+	//
+	// PageDone must be called after every page is fully emitted, so an
+	// interrupted backfill loses at most one page rather than the run.
 	Collect(ctx context.Context, c cred.Credential, r timerange.Range,
-		cursor string, emit func(fact.Fact) error) (nextCursor string, err error)
+		cursor string, out Emitter) (nextCursor string, err error)
 }
+
+// Emitter receives what a collector produces.
+//
+// The two methods exist because the unit a collector emits (a fact) and the
+// unit it can safely resume from (a page) are different. Persisting the cursor
+// after every page is what turns Ctrl-C during a 30-day backfill from "start
+// again" into "lose at most one page".
+type Emitter interface {
+	// Emit records one fact.
+	Emit(f fact.Fact) error
+	// PageDone reports that every fact up to cursor has been emitted.
+	PageDone(cursor string) error
+}
+
+// EmitterFunc adapts a plain function, for callers that do not resume — the
+// stdout printer and most tests.
+type EmitterFunc func(fact.Fact) error
+
+func (f EmitterFunc) Emit(x fact.Fact) error { return f(x) }
+func (EmitterFunc) PageDone(string) error    { return nil }
 
 // ErrNotImplemented means this vendor's collector has not been written yet.
 //
@@ -61,9 +84,19 @@ type Registry map[string]Collector
 // directory, or a test server, with no knowledge of which.
 func New(client *http.Client) Registry {
 	return Registry{
-		"openai":    &openAI{http: client},
-		"anthropic": &anthropic{http: client},
+		"openai":    &openAI{http: client, limiter: limiterFor("openai")},
+		"anthropic": &anthropic{http: client, limiter: limiterFor("anthropic")},
 	}
+}
+
+// limiterFor builds a vendor's rate limiter from its catalog entry, so the
+// limit and the vendor definition cannot drift apart.
+func limiterFor(vendorID string) *limiter {
+	v, ok := catalog.Get(vendorID)
+	if !ok {
+		return newLimiter(0)
+	}
+	return newLimiter(v.RateLimitRPS)
 }
 
 // Get returns the collector for a vendor.

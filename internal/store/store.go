@@ -196,3 +196,93 @@ func (d *DB) Health() (Health, error) {
 	}
 	return h, nil
 }
+
+// SyncState is how far a vendor's collection got.
+type SyncState struct {
+	Vendor      string
+	CoveredFrom string
+	CoveredTo   string
+	Cursor      string
+	LastRunAt   int64
+	LastError   string
+}
+
+// SyncState reads one vendor's progress. A vendor never collected returns the
+// zero value and no error: not having run yet is a state, not a failure.
+func (d *DB) SyncState(vendor string) (SyncState, error) {
+	s := SyncState{Vendor: vendor}
+	var lastRun sql.NullInt64
+
+	err := d.sql.QueryRow(
+		`SELECT covered_from, covered_to, cursor, last_run_at, last_error
+		 FROM sync_state WHERE vendor = ?`, vendor,
+	).Scan(&s.CoveredFrom, &s.CoveredTo, &s.Cursor, &lastRun, &s.LastError)
+	if errors.Is(err, sql.ErrNoRows) {
+		return s, nil
+	}
+	if err != nil {
+		return s, err
+	}
+	s.LastRunAt = lastRun.Int64
+	return s, nil
+}
+
+// SaveSyncState records progress. Coverage only ever widens: a 7-day scan after
+// a 30-day one must not shrink what the database is known to hold.
+func (d *DB) SaveSyncState(s SyncState) error {
+	_, err := d.sql.Exec(`
+		INSERT INTO sync_state (vendor, covered_from, covered_to, cursor, last_run_at, last_error)
+		VALUES (?,?,?,?,?,?)
+		ON CONFLICT(vendor) DO UPDATE SET
+			covered_from = CASE
+				WHEN excluded.covered_from = '' THEN sync_state.covered_from
+				WHEN sync_state.covered_from = '' THEN excluded.covered_from
+				WHEN excluded.covered_from < sync_state.covered_from THEN excluded.covered_from
+				ELSE sync_state.covered_from END,
+			covered_to = CASE
+				WHEN excluded.covered_to > sync_state.covered_to THEN excluded.covered_to
+				ELSE sync_state.covered_to END,
+			cursor       = excluded.cursor,
+			last_run_at  = excluded.last_run_at,
+			last_error   = excluded.last_error`,
+		s.Vendor, s.CoveredFrom, s.CoveredTo, s.Cursor, s.LastRunAt, s.LastError)
+	return err
+}
+
+// Totals is what the report's headline number is built from.
+type Totals struct {
+	Micros int64 // sum of amounts aispend could determine
+	Facts  int   // rows in the window
+	Priced int   // rows carrying a known amount
+	Days   int   // distinct days with data
+}
+
+// Totals sums the latest revision of every fact in the window.
+//
+// Only the highest revision of each fact counts. Summing every revision would
+// double-count every day a vendor has ever restated, which is the kind of error
+// that is invisible until someone reconciles against an invoice.
+func (d *DB) Totals(from, to string) (Totals, error) {
+	var t Totals
+	err := d.sql.QueryRow(`
+		WITH latest AS (
+		  SELECT f.* FROM usage_fact f
+		  JOIN (
+		    SELECT vendor, day, workspace_ref, principal_ref, model_ref, max(revision) AS revision
+		    FROM usage_fact WHERE day BETWEEN ? AND ?
+		    GROUP BY vendor, day, workspace_ref, principal_ref, model_ref
+		  ) m ON f.vendor=m.vendor AND f.day=m.day AND f.workspace_ref=m.workspace_ref
+		     AND f.principal_ref=m.principal_ref AND f.model_ref=m.model_ref
+		     AND f.revision=m.revision
+		  WHERE f.day BETWEEN ? AND ?
+		)
+		SELECT
+		  COALESCE(sum(CASE WHEN amount_basis <> 'unknown' THEN amount_micros ELSE 0 END), 0),
+		  count(*),
+		  COALESCE(sum(CASE WHEN amount_basis <> 'unknown' THEN 1 ELSE 0 END), 0),
+		  count(DISTINCT day)
+		FROM latest`,
+		from, to, from, to,
+	).Scan(&t.Micros, &t.Facts, &t.Priced, &t.Days)
+	return t, err
+}

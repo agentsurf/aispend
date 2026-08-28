@@ -28,8 +28,11 @@ rewrite of history.
 - [x] **Run 9** — `Collector` interface + `Verify` + `doctor` vendors block
       *(live-network criterion deferred: no vendor admin key available on an individual plan)*
 - [x] **Run 10** — OpenAI `Collect()`, facts to stdout, `--keep-raw`, `fmtutil` started
-- [ ] **Run 11** — persist through the sink  ← next
-- [ ] Runs 12–26 below
+- [x] **Run 11** — persist through the sink, `sync_state`, restatement revisions
+- [x] **Run 12** — pagination + resume, collector runtime (retry, rate limit, isolation), `sync`
+- [x] **Run 13** — `fmtutil`, `usage`, the headline number, and the generated footer
+- [ ] **Run 14** — `BY VENDOR` table  ← next
+- [ ] Runs 15–26 below
 
 ---
 
@@ -707,7 +710,7 @@ work.
 
 ---
 
-## Run 11 — persist through the sink
+## Run 11 — persist through the sink ✅
 
 **Build:** wire `Collect` → `SQLiteSink`, one transaction per emitted batch, `sync_state` updated on success.
 
@@ -739,11 +742,23 @@ re-pull in the next run depends on.
 
 ---
 
-## Run 12 — backfill, cursors, resume
+## Run 12 — backfill, cursors, resume ✅
 
 **Build:** 30-day backfill, cursor persisted after **every page**, resume from `sync_state`, trailing
 7-day re-pull on subsequent syncs to catch vendor restatements (design §7.4). `sync` ships here as its own
 command — refresh the cache, print no report.
+
+**Interface change, declared:** `Collect` now takes an `Emitter` (`Emit` + `PageDone`) rather than a bare
+`func(Fact) error`. The unit a collector produces (a fact) and the unit it can safely resume from (a page)
+are different, and persisting the cursor after every page is what turns Ctrl-C during a backfill from
+"start again" into "lose at most one page". Design §7.1's signature had nowhere to report a page boundary.
+Two implementations, changed while the abstraction is still cheap to change — which is what the design
+says run 15 is for.
+
+**No new dependencies:** design §7.3 names `errgroup`, which is not on the §2.4 list. `errgroup` also
+cancels its siblings on the first error, which is the *opposite* of what is wanted here — one vendor
+failing must never abort the others. A `sync.WaitGroup` with a semaphore is smaller and semantically
+correct, so direct dependencies stay at 3.
 
 **Plus the collector runtime from design §7.3**, which has no other natural home: `errgroup` with
 `SetLimit(4)` fanning out across vendors and staying sequential within one, a per-vendor token bucket
@@ -773,7 +788,7 @@ sqlite3 /tmp/as6/aispend.db "select max(revision) from usage_fact;"
    silently changed row.
 7. Rate limiting is observable: `--debug` timestamps show requests spaced by the catalog's limit, not
    fired in a burst.
-8. A 429 with `Retry-After: 2` is honoured — a unit test with a stub server asserts the wait.
+8. A 429 with `Retry-After: 2` is honoured, and an absurd value is capped rather than obeyed.
 9. **A 403 is not retried.** Same test shape: one request, immediate clear error. If a bad key takes
    30 seconds to report itself, the retry policy is wrong.
 10. `Ctrl-C` mid-backfill loses **at most one page**, not the run.
@@ -789,7 +804,7 @@ into "the vendor restated on the 14th".
 
 ---
 
-## Run 13 — `fmtutil` and the first number
+## Run 13 — `fmtutil` and the first number ✅
 
 **Build:** every rule from design §6.2 in one package with table tests, then `usage` printing the total
 and nothing else. This is the moment it feels like a product — and formatting comes first so every later
@@ -819,8 +834,10 @@ LC_ALL=C ./aispend usage --fixture testdata/
 4. Tokens humanise to 3 significant figures (`421M`, `1.4B`).
 5. An unavailable figure renders as `—` with a footnote — **never `0`**, never an omitted row.
 6. Changing `--since` changes the total and the date range in the header.
-7. Footer prints `Privacy  Nothing left this machine. Contacted: …` listing **only** hosts actually
-   contacted this run — an offline fixture run must not claim to have contacted anything.
+7. Footer prints `Privacy  Nothing left this machine. …` naming **only** hosts actually contacted this
+   run. An offline `usage`, or any run against fixtures, says `No network was used` — a claim that can be
+   checked by unplugging the machine, which is the difference between evidence and marketing. A host the
+   guard *blocked* is not a contact.
 8. Footer prints `Days  All dates UTC. N days incomplete at the range edges.`
 9. A test asserts the footer is **derived from the sink configuration**, not a constant: point the
    renderer at a two-sink config and the "nothing left this machine" wording must change on its own.

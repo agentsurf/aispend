@@ -182,3 +182,135 @@ func TestHealthCoverageOnAnEmptyTable(t *testing.T) {
 		t.Errorf("coverage = %q..%q, want empty", h.CoveredFrom, h.CoveredTo)
 	}
 }
+
+// A vendor that has never collected returns the zero value, not an error: not
+// having run yet is a state to report, not a failure.
+func TestSyncStateForAnUncollectedVendor(t *testing.T) {
+	db, _ := open(t)
+
+	s, err := db.SyncState("openai")
+	if err != nil {
+		t.Fatalf("SyncState: %v", err)
+	}
+	if s.Vendor != "openai" || s.Cursor != "" || s.CoveredTo != "" {
+		t.Errorf("state = %+v, want the zero value", s)
+	}
+}
+
+func TestSaveAndReadSyncState(t *testing.T) {
+	db, _ := open(t)
+
+	want := SyncState{
+		Vendor: "openai", CoveredFrom: "2026-07-29", CoveredTo: "2026-08-27",
+		Cursor: "page_abc", LastRunAt: 1787916675,
+	}
+	if err := db.SaveSyncState(want); err != nil {
+		t.Fatalf("SaveSyncState: %v", err)
+	}
+
+	got, err := db.SyncState("openai")
+	if err != nil {
+		t.Fatalf("SyncState: %v", err)
+	}
+	if got != want {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+}
+
+// Coverage only ever widens. A 7-day scan run after a 30-day one must not
+// shrink what the database is known to hold, or the next report would silently
+// under-claim its own range.
+func TestCoverageOnlyWidens(t *testing.T) {
+	db, _ := open(t)
+
+	if err := db.SaveSyncState(SyncState{
+		Vendor: "openai", CoveredFrom: "2026-07-29", CoveredTo: "2026-08-27",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SaveSyncState(SyncState{
+		Vendor: "openai", CoveredFrom: "2026-08-21", CoveredTo: "2026-08-27",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, _ := db.SyncState("openai")
+	if got.CoveredFrom != "2026-07-29" {
+		t.Errorf("CoveredFrom = %s, want the earlier 2026-07-29", got.CoveredFrom)
+	}
+
+	// A later end date does extend it.
+	db.SaveSyncState(SyncState{Vendor: "openai", CoveredFrom: "2026-08-21", CoveredTo: "2026-08-28"})
+	got, _ = db.SyncState("openai")
+	if got.CoveredTo != "2026-08-28" {
+		t.Errorf("CoveredTo = %s, want the later 2026-08-28", got.CoveredTo)
+	}
+}
+
+func insertFact(t *testing.T, db *DB, day string, revision int, micros int64, basis string) {
+	t.Helper()
+	_, err := db.SQL().Exec(`
+		INSERT INTO usage_fact (fact_id, vendor, day, workspace_ref, principal_ref, model_ref,
+			input_units, unit_kind, amount_micros, amount_basis, revision, collected_at)
+		VALUES ('id', 'openai', ?, '', '', 'gpt-5.2', 100, 'token', ?, ?, ?, 0)`,
+		day, micros, basis, revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Only the highest revision of a fact counts. Summing every revision would
+// double-count every day a vendor has ever restated — an error invisible until
+// someone reconciles against an invoice, which is the worst moment to find it.
+func TestTotalsCountOnlyTheLatestRevision(t *testing.T) {
+	db, _ := open(t)
+
+	insertFact(t, db, "2026-08-27", 1, 10_000_000, "vendor_reported")
+	insertFact(t, db, "2026-08-27", 2, 25_000_000, "vendor_reported") // restated
+
+	got, err := db.Totals("2026-08-01", "2026-08-31")
+	if err != nil {
+		t.Fatalf("Totals: %v", err)
+	}
+	if got.Micros != 25_000_000 {
+		t.Errorf("Micros = %d, want only the latest revision (25000000)", got.Micros)
+	}
+	if got.Facts != 1 {
+		t.Errorf("Facts = %d, want 1", got.Facts)
+	}
+}
+
+// An unpriced fact contributes nothing to the total and is counted separately,
+// so the report can say how much of its own number is missing.
+func TestTotalsSeparateUnknownFromZero(t *testing.T) {
+	db, _ := open(t)
+
+	insertFact(t, db, "2026-08-26", 1, 0, "unknown")
+	insertFact(t, db, "2026-08-27", 1, 5_000_000, "vendor_reported")
+
+	got, _ := db.Totals("2026-08-01", "2026-08-31")
+	if got.Facts != 2 {
+		t.Errorf("Facts = %d, want 2", got.Facts)
+	}
+	if got.Priced != 1 {
+		t.Errorf("Priced = %d, want 1", got.Priced)
+	}
+	if got.Micros != 5_000_000 {
+		t.Errorf("Micros = %d, want 5000000", got.Micros)
+	}
+	if got.Days != 2 {
+		t.Errorf("Days = %d, want 2", got.Days)
+	}
+}
+
+func TestTotalsRespectTheWindow(t *testing.T) {
+	db, _ := open(t)
+
+	insertFact(t, db, "2026-07-01", 1, 9_000_000, "vendor_reported")
+	insertFact(t, db, "2026-08-27", 1, 5_000_000, "vendor_reported")
+
+	got, _ := db.Totals("2026-08-01", "2026-08-31")
+	if got.Micros != 5_000_000 {
+		t.Errorf("Micros = %d — a fact outside the window was counted", got.Micros)
+	}
+}

@@ -6,11 +6,13 @@ import (
 	"net/http"
 
 	"github.com/prabhuvmk/aispend/internal/cred"
-	"github.com/prabhuvmk/aispend/internal/fact"
 	"github.com/prabhuvmk/aispend/internal/timerange"
 )
 
-type anthropic struct{ http *http.Client }
+type anthropic struct {
+	http    *http.Client
+	limiter *limiter
+}
 
 func (a *anthropic) Vendor() string { return "anthropic" }
 
@@ -60,26 +62,21 @@ func (a *anthropic) Verify(ctx context.Context, c cred.Credential) (AccountInfo,
 
 // Collect lands in run 15. Verify above already works, so a credential can be
 // checked today even though nothing is collected from it yet.
-func (a *anthropic) Collect(context.Context, cred.Credential, timerange.Range, string, func(fact.Fact) error) (string, error) {
+func (a *anthropic) Collect(context.Context, cred.Credential, timerange.Range, string, Emitter) (string, error) {
 	return "", fmt.Errorf("anthropic: %w", ErrNotImplemented)
 }
 
+// get performs one authenticated read, through the shared retry and rate-limit
+// path so no collector has to remember either.
 func (a *anthropic) get(ctx context.Context, c cred.Credential, url string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-	// Anthropic's Admin API takes the key in x-api-key, not a bearer token, and
-	// requires the version header on every request.
-	req.Header.Set("x-api-key", c.Secret())
-	req.Header.Set("anthropic-version", "2023-06-01")
-	req.Header.Set("User-Agent", userAgent)
-
-	resp, err := a.http.Do(req)
-	if err != nil {
-		return classify("anthropic", err)
-	}
-	defer resp.Body.Close()
-
-	return decode("anthropic", resp, out)
+	return fetch(ctx, a.http, "anthropic", a.limiter, func() (*http.Request, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("x-api-key", c.Secret())
+		req.Header.Set("anthropic-version", "2023-06-01")
+		req.Header.Set("User-Agent", userAgent)
+		return req, nil
+	}, out)
 }

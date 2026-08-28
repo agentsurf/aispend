@@ -14,7 +14,10 @@ import (
 	"github.com/prabhuvmk/aispend/internal/timerange"
 )
 
-type openAI struct{ http *http.Client }
+type openAI struct {
+	http    *http.Client
+	limiter *limiter
+}
 
 func (o *openAI) Vendor() string { return "openai" }
 
@@ -89,7 +92,7 @@ const maxBuckets = 31
 // carries amount_basis 'unknown' with a zero amount, which the renderer shows
 // as an em dash — never as $0.00, which would silently understate the total.
 func (o *openAI) Collect(ctx context.Context, c cred.Credential, r timerange.Range,
-	cursor string, emit func(fact.Fact) error) (string, error) {
+	cursor string, out Emitter) (string, error) {
 
 	base, err := endpoint("openai", "usage")
 	if err != nil {
@@ -165,10 +168,15 @@ func (o *openAI) Collect(ctx context.Context, c cred.Credential, r timerange.Ran
 					Revision:     1,
 					CollectedAt:  collected,
 				}
-				if err := emit(f); err != nil {
+				if err := out.Emit(f); err != nil {
 					return page, err
 				}
 			}
+		}
+
+		// The page is fully emitted, so it is now safe to resume from here.
+		if err := out.PageDone(body.NextPage); err != nil {
+			return page, err
 		}
 
 		if !body.HasMore || body.NextPage == "" || body.NextPage == page {
@@ -178,20 +186,16 @@ func (o *openAI) Collect(ctx context.Context, c cred.Credential, r timerange.Ran
 	}
 }
 
-// get performs one authenticated read and decodes it.
+// get performs one authenticated read, through the shared retry and rate-limit
+// path so no collector has to remember either.
 func (o *openAI) get(ctx context.Context, c cred.Credential, url string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.Secret())
-	req.Header.Set("User-Agent", userAgent)
-
-	resp, err := o.http.Do(req)
-	if err != nil {
-		return classify("openai", err)
-	}
-	defer resp.Body.Close()
-
-	return decode("openai", resp, out)
+	return fetch(ctx, o.http, "openai", o.limiter, func() (*http.Request, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+c.Secret())
+		req.Header.Set("User-Agent", userAgent)
+		return req, nil
+	}, out)
 }

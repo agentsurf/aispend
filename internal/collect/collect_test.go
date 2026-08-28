@@ -325,7 +325,7 @@ func TestOpenAICollectMapsAUsageRow(t *testing.T) {
 	var got []fact.Fact
 	_, err := (&openAI{http: client}).Collect(context.Background(),
 		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
-		window(t, "1d"), "", func(f fact.Fact) error { got = append(got, f); return nil })
+		window(t, "1d"), "", EmitterFunc(func(f fact.Fact) error { got = append(got, f); return nil }))
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -365,7 +365,7 @@ func TestOpenAICollectKeepsCachedTokensSeparate(t *testing.T) {
 	var f fact.Fact
 	_, err := (&openAI{http: client}).Collect(context.Background(),
 		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
-		window(t, "1d"), "", func(got fact.Fact) error { f = got; return nil })
+		window(t, "1d"), "", EmitterFunc(func(got fact.Fact) error { f = got; return nil }))
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -392,7 +392,7 @@ func TestOpenAICollectReportsCostAsUnknownNotZero(t *testing.T) {
 	var f fact.Fact
 	(&openAI{http: client}).Collect(context.Background(),
 		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
-		window(t, "1d"), "", func(got fact.Fact) error { f = got; return nil })
+		window(t, "1d"), "", EmitterFunc(func(got fact.Fact) error { f = got; return nil }))
 
 	if f.AmountBasis != fact.BasisUnknown {
 		t.Errorf("AmountBasis = %q, want %q", f.AmountBasis, fact.BasisUnknown)
@@ -413,7 +413,7 @@ func TestOpenAICollectDropsBucketsOutsideTheWindow(t *testing.T) {
 	var days []string
 	_, err := (&openAI{http: client}).Collect(context.Background(),
 		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
-		window(t, "1d"), "", func(f fact.Fact) error { days = append(days, f.Day); return nil })
+		window(t, "1d"), "", EmitterFunc(func(f fact.Fact) error { days = append(days, f.Day); return nil }))
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -429,7 +429,7 @@ func TestOpenAICollectWithNoUsage(t *testing.T) {
 	count := 0
 	_, err := (&openAI{http: client}).Collect(context.Background(),
 		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
-		window(t, "7d"), "", func(fact.Fact) error { count++; return nil })
+		window(t, "7d"), "", EmitterFunc(func(fact.Fact) error { count++; return nil }))
 	if err != nil {
 		t.Fatalf("an empty window was an error: %v", err)
 	}
@@ -446,7 +446,7 @@ func TestOpenAICollectStopsWhenEmitFails(t *testing.T) {
 	boom := errors.New("sink is full")
 	_, err := (&openAI{http: client}).Collect(context.Background(),
 		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
-		window(t, "1d"), "", func(fact.Fact) error { return boom })
+		window(t, "1d"), "", EmitterFunc(func(fact.Fact) error { return boom }))
 	if !errors.Is(err, boom) {
 		t.Errorf("Collect swallowed the emit error: %v", err)
 	}
@@ -463,13 +463,13 @@ func TestOpenAICollectGivesEachRowADistinctIdentity(t *testing.T) {
 	seen := map[string]bool{}
 	_, err := (&openAI{http: client}).Collect(context.Background(),
 		cred.New("openai", cred.SourceEnv, "OPENAI_ADMIN_KEY", testKey),
-		window(t, "1d"), "", func(f fact.Fact) error {
+		window(t, "1d"), "", EmitterFunc(func(f fact.Fact) error {
 			if seen[f.ID()] {
 				t.Errorf("duplicate fact id for %s/%s", f.ModelRef, f.PrincipalRef)
 			}
 			seen[f.ID()] = true
 			return nil
-		})
+		}))
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -483,7 +483,7 @@ func TestOpenAICollectGivesEachRowADistinctIdentity(t *testing.T) {
 // only by reading the message.
 func TestUnimplementedCollectorIsDistinguishable(t *testing.T) {
 	_, err := (&anthropic{}).Collect(context.Background(), cred.Credential{},
-		window(t, "1d"), "", func(fact.Fact) error { return nil })
+		window(t, "1d"), "", EmitterFunc(func(fact.Fact) error { return nil }))
 
 	if !errors.Is(err, ErrNotImplemented) {
 		t.Errorf("Collect error = %v, want it to wrap ErrNotImplemented", err)
@@ -491,5 +491,134 @@ func TestUnimplementedCollectorIsDistinguishable(t *testing.T) {
 	var ve *VendorError
 	if errors.As(err, &ve) {
 		t.Error("an unimplemented collector reported itself as a vendor failure")
+	}
+}
+
+// pager serves a two-page usage report and records the page cursors requested.
+func pager(t *testing.T) (*http.Client, *[]string) {
+	t.Helper()
+
+	var asked []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked = append(asked, r.URL.Query().Get("page"))
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Query().Get("page") == "" {
+			w.Write([]byte(`{"object":"page","data":[` + bucket27 + `],"has_more":true,"next_page":"page_two"}`))
+			return
+		}
+		w.Write([]byte(`{"object":"page","data":[{"object":"bucket","start_time":1787788800,
+			"end_time":1787875200,"results":[{"input_tokens":5,"output_tokens":1,
+			"project_id":"proj_b72c","api_key_id":"key_c118","model":"gpt-5.2-mini"}]}],
+			"has_more":false,"next_page":null}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	client := srv.Client()
+	client.Transport = rewriteHost{base: client.Transport, to: strings.TrimPrefix(srv.URL, "http://")}
+	return client, &asked
+}
+
+// recorder captures both what was emitted and where the collector said it was
+// safe to resume from.
+type recorder struct {
+	facts  []fact.Fact
+	pages  []string
+	failAt int
+}
+
+func (r *recorder) Emit(f fact.Fact) error {
+	if r.failAt > 0 && len(r.facts) == r.failAt {
+		return errors.New("interrupted")
+	}
+	r.facts = append(r.facts, f)
+	return nil
+}
+
+func (r *recorder) PageDone(cursor string) error {
+	r.pages = append(r.pages, cursor)
+	return nil
+}
+
+func TestCollectFollowsPagination(t *testing.T) {
+	client, asked := pager(t)
+	rec := &recorder{}
+
+	next, err := (&openAI{http: client, limiter: newLimiter(1000)}).Collect(
+		context.Background(), cred.New("openai", cred.SourceEnv, "K", testKey),
+		window(t, "1d"), "", rec)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+
+	if len(rec.facts) != 2 {
+		t.Errorf("got %d facts across two pages, want 2", len(rec.facts))
+	}
+	if len(*asked) != 2 || (*asked)[0] != "" || (*asked)[1] != "page_two" {
+		t.Errorf("pages requested = %v, want [\"\", \"page_two\"]", *asked)
+	}
+	if next != "" {
+		t.Errorf("final cursor = %q, want empty at the end of the report", next)
+	}
+}
+
+// PageDone is what makes Ctrl-C during a backfill lose at most one page rather
+// than the run.
+func TestCollectReportsEveryPageBoundary(t *testing.T) {
+	client, _ := pager(t)
+	rec := &recorder{}
+
+	if _, err := (&openAI{http: client, limiter: newLimiter(1000)}).Collect(
+		context.Background(), cred.New("openai", cred.SourceEnv, "K", testKey),
+		window(t, "1d"), "", rec); err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+
+	if len(rec.pages) != 2 {
+		t.Fatalf("PageDone called %d times for two pages: %v", len(rec.pages), rec.pages)
+	}
+	// The first boundary must point at the *next* page, or a resume would
+	// re-read the page just finished.
+	if rec.pages[0] != "page_two" {
+		t.Errorf("first page boundary = %q, want page_two", rec.pages[0])
+	}
+}
+
+// A cursor handed in must be used, so a resumed run does not re-read pages it
+// already stored.
+func TestCollectResumesFromACursor(t *testing.T) {
+	client, asked := pager(t)
+	rec := &recorder{}
+
+	if _, err := (&openAI{http: client, limiter: newLimiter(1000)}).Collect(
+		context.Background(), cred.New("openai", cred.SourceEnv, "K", testKey),
+		window(t, "1d"), "page_two", rec); err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+
+	if len(*asked) != 1 || (*asked)[0] != "page_two" {
+		t.Errorf("pages requested = %v, want only [\"page_two\"]", *asked)
+	}
+	if len(rec.facts) != 1 {
+		t.Errorf("got %d facts, want only the resumed page's 1", len(rec.facts))
+	}
+}
+
+// An interrupt part-way through must keep the pages already completed.
+func TestInterruptedCollectKeepsCompletedPages(t *testing.T) {
+	client, _ := pager(t)
+	rec := &recorder{failAt: 1} // fail on the second fact, i.e. during page two
+
+	_, err := (&openAI{http: client, limiter: newLimiter(1000)}).Collect(
+		context.Background(), cred.New("openai", cred.SourceEnv, "K", testKey),
+		window(t, "1d"), "", rec)
+	if err == nil {
+		t.Fatal("the interruption was swallowed")
+	}
+	if len(rec.facts) != 1 {
+		t.Errorf("kept %d facts, want the 1 from the completed page", len(rec.facts))
+	}
+	if len(rec.pages) != 1 || rec.pages[0] != "page_two" {
+		t.Errorf("page boundaries = %v, want the first page recorded", rec.pages)
 	}
 }

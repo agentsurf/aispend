@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,9 +14,12 @@ import (
 	"github.com/prabhuvmk/aispend/internal/catalog"
 	"github.com/prabhuvmk/aispend/internal/collect"
 	"github.com/prabhuvmk/aispend/internal/cred"
+	"github.com/prabhuvmk/aispend/internal/dbg"
 	"github.com/prabhuvmk/aispend/internal/egress"
 	"github.com/prabhuvmk/aispend/internal/fact"
 	"github.com/prabhuvmk/aispend/internal/fmtutil"
+	"github.com/prabhuvmk/aispend/internal/sink"
+	"github.com/prabhuvmk/aispend/internal/store"
 	"github.com/prabhuvmk/aispend/internal/timerange"
 	"github.com/prabhuvmk/aispend/internal/ui"
 )
@@ -46,7 +50,7 @@ in full by --dry-run.`,
 			if flagDryRun {
 				return dryRun(out, caps, r)
 			}
-			return runScan(cmd, out, caps, r)
+			return runScan(cmd, out, caps, r, false)
 		},
 	}
 
@@ -182,26 +186,35 @@ type vendorCheck struct {
 	Took         time.Duration
 }
 
-// runScan collects from every connected vendor and prints what it found.
+// runScan collects from every connected vendor, stores what it finds, and
+// reports what happened.
 //
-// Nothing is written to the database in this build: the facts are printed so the
-// mapping from a vendor's response onto the fact schema can be checked against
-// the vendor's own dashboard before anything is stored. Persistence is the next
-// run.
-func runScan(cmd *cobra.Command, w io.Writer, caps ui.Caps, r timerange.Range) error {
+// Vendors run concurrently and independently: one vendor failing must never
+// abort the others, because a report covering two of three with a clear
+// explanation of the third is worth far more than no report at all.
+func runScan(cmd *cobra.Command, w io.Writer, caps ui.Caps, r timerange.Range, quiet bool) error {
 	client, err := scanClient()
 	if err != nil {
 		return err
 	}
+	paths, err := resolvePaths()
+	if err != nil {
+		return err
+	}
+	db, err := store.Open(paths.DB)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	dest := destination(db)
 	registry := collect.New(client)
+	ctx := cmd.Context()
 
 	var (
-		total    int
-		problems []*collect.VendorError
-		unpriced int
+		jobs     []collect.Job
+		emitters = map[string]*storeEmitter{}
 	)
-
-	fmt.Fprintf(w, "\n  Scanning %s\n\n", r.String())
 
 	for _, v := range catalog.Vendors() {
 		c := cred.Resolve(v)
@@ -210,57 +223,108 @@ func runScan(cmd *cobra.Command, w io.Writer, caps ui.Caps, r timerange.Range) e
 		}
 		collector, ok := registry.Get(v.ID)
 		if !ok {
-			fmt.Fprintf(w, "  %s %-11s %s\n", caps.Dash(), v.ID, "not implemented in this build")
 			continue
 		}
 
-		started := time.Now()
-		count := 0
-		_, err := collector.Collect(cmd.Context(), c, r, "", func(f fact.Fact) error {
-			count++
-			if f.AmountBasis == fact.BasisUnknown {
-				unpriced++
+		// Resume from wherever the last run stopped. A cursor from a different
+		// window would point into the wrong result set, so it is only reused
+		// when the window still covers what it was recorded against.
+		state, err := db.SyncState(v.ID)
+		if err != nil {
+			return err
+		}
+		cursor := ""
+		if state.Cursor != "" && state.CoveredFrom == r.FromDay() && state.CoveredTo == r.ToDay() {
+			cursor = state.Cursor
+			dbg.Printf("resuming %s from a stored cursor", v.ID)
+			if !quiet {
+				fmt.Fprintf(w, "  %s\n", caps.Dim("resuming "+v.ID+" from "+state.CoveredTo))
 			}
-			fmt.Fprintln(w, "  "+factLine(f, caps))
-			return nil
+		}
+
+		em := newStoreEmitter(ctx, db, dest, v.ID, r)
+		if !quiet {
+			em.printer = func(f fact.Fact) { fmt.Fprintln(w, "  "+factLine(f, caps)) }
+		}
+		emitters[v.ID] = em
+
+		vendorID, collectorRef, credRef, cur := v.ID, collector, c, cursor
+		jobs = append(jobs, collect.Job{
+			Vendor: vendorID,
+			Count:  em.Count,
+			Run: func(ctx context.Context) (string, error) {
+				next, err := collectorRef.Collect(ctx, credRef, r, cur, em)
+				// Flush regardless: a failure part-way through must keep the
+				// facts already read, not discard them.
+				if flushErr := em.Close(); err == nil {
+					err = flushErr
+				}
+				return next, err
+			},
 		})
-		total += count
+	}
+
+	if len(jobs) == 0 {
+		fmt.Fprintf(w, "\n  %s\n", caps.Dim(
+			"no vendor is connected — set a credential, or run: aispend connections"))
+		return nil
+	}
+
+	if !quiet {
+		fmt.Fprintf(w, "\n  Scanning %d %s %s\n\n", len(jobs),
+			plural(len(jobs), "connection", "connections"), r.String())
+	}
+
+	results := collect.Run(ctx, jobs, 4)
+	return reportScan(w, caps, db, dest, r, results, quiet)
+}
+
+// reportScan prints the per-vendor outcome and records it in sync_state.
+func reportScan(w io.Writer, caps ui.Caps, db *store.DB, dest sink.Sink,
+	r timerange.Range, results []collect.Result, quiet bool) error {
+
+	var (
+		total    int
+		problems []*collect.VendorError
+	)
+
+	for _, res := range results {
+		// Whatever happened, record it: last_error is how the next run explains
+		// a vendor that has been failing quietly.
+		state := store.SyncState{
+			Vendor: res.Vendor, CoveredFrom: r.FromDay(), CoveredTo: r.ToDay(),
+			Cursor: res.Cursor, LastRunAt: time.Now().UTC().Unix(),
+		}
 
 		switch {
-		case errors.Is(err, collect.ErrNotImplemented):
-			// Not built yet is not a failure. It prints as absent, like a
-			// vendor with no credential, rather than as something gone wrong.
-			fmt.Fprintf(w, "  %s %-11s %s\n", caps.Dash(), v.ID,
+		case errors.Is(res.Err, collect.ErrNotImplemented):
+			fmt.Fprintf(w, "  %s %-11s %s\n", caps.Dash(), res.Vendor,
 				caps.Dim("collector not implemented in this build"))
-		case err != nil:
+			continue
+		case res.Err != nil:
+			state.LastError = res.Err.Error()
 			var ve *collect.VendorError
-			if errors.As(err, &ve) {
+			if errors.As(res.Err, &ve) {
 				problems = append(problems, ve)
-				fmt.Fprintf(w, "  %s %-11s %s\n", caps.Fail(), v.ID, ve.What)
+				fmt.Fprintf(w, "  %s %-11s %s\n", caps.Fail(), res.Vendor, ve.What)
 			} else {
-				fmt.Fprintf(w, "  %s %-11s %s\n", caps.Fail(), v.ID, err.Error())
+				fmt.Fprintf(w, "  %s %-11s %s\n", caps.Fail(), res.Vendor, res.Err.Error())
 			}
 		default:
-			fmt.Fprintf(w, "  %s %-11s %s facts %s %s\n", caps.OK(), v.ID,
-				fmtutil.Tokens(int64(count)), caps.Sep(),
-				time.Since(started).Round(time.Millisecond/10).String())
+			total += res.Facts
+			fmt.Fprintf(w, "  %s %-11s %d facts %s %s\n", caps.OK(), res.Vendor,
+				res.Facts, caps.Sep(), res.Took.Round(time.Millisecond/10))
+		}
+
+		if err := db.SaveSyncState(state); err != nil {
+			return err
 		}
 	}
 
 	if total == 0 && len(problems) == 0 {
-		// No usage is a finding, not an empty screen. An empty report would
-		// leave the reader unsure whether the tool worked.
-		fmt.Fprintf(w, "  %s\n",
-			caps.Dim("no usage reported in this window — try a wider one, e.g. --since 90d"))
-		return nil
+		fmt.Fprintf(w, "\n  %s\n", caps.Dim(
+			"no usage reported in this window — try a wider one, e.g. --since 90d"))
 	}
-
-	if unpriced > 0 {
-		fmt.Fprintf(w, "\n  %s\n", caps.Dim(fmt.Sprintf(
-			"%d facts have no cost attached yet %s the price book and the vendor cost report are not wired up",
-			unpriced, caps.Sep())))
-	}
-	fmt.Fprintf(w, "\n  %s\n", caps.Dim("nothing was written to the database in this build"))
 
 	for _, ve := range problems {
 		fmt.Fprintf(w, "\n  %s %s\n  %s\n", ve.Vendor, ve.What, wrapIndent(ve.Why, 74, "  "))
@@ -268,7 +332,24 @@ func runScan(cmd *cobra.Command, w io.Writer, caps ui.Caps, r timerange.Range) e
 			fmt.Fprintf(w, "\n  Fix:  %s\n", ve.Fix)
 		}
 	}
-	return nil
+
+	if quiet {
+		return nil
+	}
+	return renderUsage(w, caps, db, dest, r)
+}
+
+// destination builds the sink chain for this run. There is exactly one sink in
+// v1, and the Privacy footer is generated from whatever this returns.
+func destination(db *store.DB) sink.Sink {
+	return sink.NewSQLite(db.SQL())
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // factLine is the one-line rendering used while the collectors are being built,
