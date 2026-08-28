@@ -3,17 +3,17 @@
   "data": [
     {
       "object": "bucket",
-      "start_time": 1787788800,
-      "end_time": 1787875200,
+      "start_time": 1785456000,
+      "end_time": 1785542400,
       "results": [
         {
           "object": "organization.usage.completions.result",
-          "input_tokens": 1204331,
-          "output_tokens": 84210,
-          "input_cached_tokens": 310880,
+          "input_tokens": 900000,
+          "output_tokens": 64285,
+          "input_cached_tokens": 225000,
           "input_audio_tokens": 0,
           "output_audio_tokens": 0,
-          "num_model_requests": 4120,
+          "num_model_requests": 3000,
           "project_id": "proj_a91f",
           "api_key_id": "key_9f2a",
           "user_id": null,
@@ -22,12 +22,12 @@
         },
         {
           "object": "organization.usage.completions.result",
-          "input_tokens": 98220,
-          "output_tokens": 12044,
+          "input_tokens": 80000,
+          "output_tokens": 9000,
           "input_cached_tokens": 0,
-          "input_audio_tokens": 4200,
-          "output_audio_tokens": 1100,
-          "num_model_requests": 210,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
           "project_id": "proj_b72c",
           "api_key_id": "key_c118",
           "user_id": null,
@@ -38,21 +38,945 @@
     },
     {
       "object": "bucket",
-      "start_time": 1787875200,
-      "end_time": 1787961600,
+      "start_time": 1785542400,
+      "end_time": 1785628800,
       "results": [
         {
           "object": "organization.usage.completions.result",
-          "input_tokens": 2410880,
-          "output_tokens": 190432,
-          "input_cached_tokens": 1104220,
+          "input_tokens": 960000,
+          "output_tokens": 68571,
+          "input_cached_tokens": 240000,
           "input_audio_tokens": 0,
           "output_audio_tokens": 0,
-          "num_model_requests": 8840,
+          "num_model_requests": 3020,
           "project_id": "proj_a91f",
           "api_key_id": "key_9f2a",
           "user_id": null,
           "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 80900,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1785628800,
+      "end_time": 1785715200,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1020000,
+          "output_tokens": 72857,
+          "input_cached_tokens": 255000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3040,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 81800,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1785715200,
+      "end_time": 1785801600,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1080000,
+          "output_tokens": 77142,
+          "input_cached_tokens": 270000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3060,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 82700,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1785801600,
+      "end_time": 1785888000,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1140000,
+          "output_tokens": 81428,
+          "input_cached_tokens": 285000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3080,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 83600,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1785888000,
+      "end_time": 1785974400,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 900000,
+          "output_tokens": 64285,
+          "input_cached_tokens": 225000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3100,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 84500,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1785974400,
+      "end_time": 1786060800,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 960000,
+          "output_tokens": 68571,
+          "input_cached_tokens": 240000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3120,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 85400,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1786060800,
+      "end_time": 1786147200,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1020000,
+          "output_tokens": 72857,
+          "input_cached_tokens": 255000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3140,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 86300,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1786147200,
+      "end_time": 1786233600,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1080000,
+          "output_tokens": 77142,
+          "input_cached_tokens": 270000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3160,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 87200,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1786233600,
+      "end_time": 1786320000,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1140000,
+          "output_tokens": 81428,
+          "input_cached_tokens": 285000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3180,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 88100,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1786320000,
+      "end_time": 1786406400,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 900000,
+          "output_tokens": 64285,
+          "input_cached_tokens": 225000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3200,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 89000,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1786406400,
+      "end_time": 1786492800,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 960000,
+          "output_tokens": 68571,
+          "input_cached_tokens": 240000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3220,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 89900,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1786492800,
+      "end_time": 1786579200,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1020000,
+          "output_tokens": 72857,
+          "input_cached_tokens": 255000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3240,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 90800,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1786579200,
+      "end_time": 1786665600,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1080000,
+          "output_tokens": 77142,
+          "input_cached_tokens": 270000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3260,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 91700,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1786665600,
+      "end_time": 1786752000,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1140000,
+          "output_tokens": 81428,
+          "input_cached_tokens": 285000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3280,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 92600,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1786752000,
+      "end_time": 1786838400,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 900000,
+          "output_tokens": 64285,
+          "input_cached_tokens": 225000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3300,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 93500,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1786838400,
+      "end_time": 1786924800,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 960000,
+          "output_tokens": 68571,
+          "input_cached_tokens": 240000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3320,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 94400,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1786924800,
+      "end_time": 1787011200,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1020000,
+          "output_tokens": 72857,
+          "input_cached_tokens": 255000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3340,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 95300,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1787011200,
+      "end_time": 1787097600,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1080000,
+          "output_tokens": 77142,
+          "input_cached_tokens": 270000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3360,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 96200,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1787097600,
+      "end_time": 1787184000,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1140000,
+          "output_tokens": 81428,
+          "input_cached_tokens": 285000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3380,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 97100,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1787184000,
+      "end_time": 1787270400,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 900000,
+          "output_tokens": 64285,
+          "input_cached_tokens": 225000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3400,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 98000,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1787270400,
+      "end_time": 1787356800,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 960000,
+          "output_tokens": 68571,
+          "input_cached_tokens": 240000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3420,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 98900,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1787356800,
+      "end_time": 1787443200,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1020000,
+          "output_tokens": 72857,
+          "input_cached_tokens": 255000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3440,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 99800,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1787443200,
+      "end_time": 1787529600,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1080000,
+          "output_tokens": 77142,
+          "input_cached_tokens": 270000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3460,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 100700,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1787529600,
+      "end_time": 1787616000,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1140000,
+          "output_tokens": 81428,
+          "input_cached_tokens": 285000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3480,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 101600,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1787616000,
+      "end_time": 1787702400,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 900000,
+          "output_tokens": 64285,
+          "input_cached_tokens": 225000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3500,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 102500,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1787702400,
+      "end_time": 1787788800,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 960000,
+          "output_tokens": 68571,
+          "input_cached_tokens": 240000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3520,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 103400,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
+          "batch": false
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1787788800,
+      "end_time": 1787875200,
+      "results": [
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 1020000,
+          "output_tokens": 72857,
+          "input_cached_tokens": 255000,
+          "input_audio_tokens": 0,
+          "output_audio_tokens": 0,
+          "num_model_requests": 3540,
+          "project_id": "proj_a91f",
+          "api_key_id": "key_9f2a",
+          "user_id": null,
+          "model": "gpt-5.2",
+          "batch": false
+        },
+        {
+          "object": "organization.usage.completions.result",
+          "input_tokens": 104300,
+          "output_tokens": 9000,
+          "input_cached_tokens": 0,
+          "input_audio_tokens": 3000,
+          "output_audio_tokens": 800,
+          "num_model_requests": 200,
+          "project_id": "proj_b72c",
+          "api_key_id": "key_c118",
+          "user_id": null,
+          "model": "gpt-5.2-mini",
           "batch": false
         }
       ]

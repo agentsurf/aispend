@@ -1,25 +1,27 @@
 {
   "data": [
     {
-      "starting_at": "2026-08-27T00:00:00Z",
-      "ending_at": "2026-08-28T00:00:00Z",
+      "starting_at": "2026-07-31T00:00:00Z",
+      "ending_at": "2026-08-01T00:00:00Z",
       "results": [
         {
           "account_id": null,
           "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
           "cache_creation": {
-            "ephemeral_1h_input_tokens": 220000,
-            "ephemeral_5m_input_tokens": 480000
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
           },
-          "cache_read_input_tokens": 1104220,
+          "cache_read_input_tokens": 800000,
           "context_window": null,
           "inference_geo": null,
           "model": "claude-opus-4-6",
-          "output_tokens": 190432,
-          "server_tool_use": { "web_search_requests": 128 },
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
           "service_account_id": null,
           "service_tier": null,
-          "uncached_input_tokens": 420880,
+          "uncached_input_tokens": 300000,
           "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
         },
         {
@@ -33,11 +35,1255 @@
           "context_window": null,
           "inference_geo": null,
           "model": "claude-sonnet-4-6",
-          "output_tokens": 61044,
-          "server_tool_use": { "web_search_requests": 0 },
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
           "service_account_id": null,
           "service_tier": null,
-          "uncached_input_tokens": 988120,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-01T00:00:00Z",
+      "ending_at": "2026-08-02T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 301500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-02T00:00:00Z",
+      "ending_at": "2026-08-03T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 303000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-03T00:00:00Z",
+      "ending_at": "2026-08-04T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 304500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-04T00:00:00Z",
+      "ending_at": "2026-08-05T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 306000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-05T00:00:00Z",
+      "ending_at": "2026-08-06T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 307500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-06T00:00:00Z",
+      "ending_at": "2026-08-07T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 309000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-07T00:00:00Z",
+      "ending_at": "2026-08-08T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 310500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-08T00:00:00Z",
+      "ending_at": "2026-08-09T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 312000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-09T00:00:00Z",
+      "ending_at": "2026-08-10T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 313500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-10T00:00:00Z",
+      "ending_at": "2026-08-11T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 315000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-11T00:00:00Z",
+      "ending_at": "2026-08-12T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 316500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-12T00:00:00Z",
+      "ending_at": "2026-08-13T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 318000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-13T00:00:00Z",
+      "ending_at": "2026-08-14T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 319500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-14T00:00:00Z",
+      "ending_at": "2026-08-15T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 321000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-15T00:00:00Z",
+      "ending_at": "2026-08-16T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 322500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-16T00:00:00Z",
+      "ending_at": "2026-08-17T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 324000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-17T00:00:00Z",
+      "ending_at": "2026-08-18T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 325500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-18T00:00:00Z",
+      "ending_at": "2026-08-19T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 327000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-19T00:00:00Z",
+      "ending_at": "2026-08-20T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 328500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-20T00:00:00Z",
+      "ending_at": "2026-08-21T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 120000,
+            "ephemeral_5m_input_tokens": 260000
+          },
+          "cache_read_input_tokens": 800000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 140000,
+          "server_tool_use": {
+            "web_search_requests": 12
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 330000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-21T00:00:00Z",
+      "ending_at": "2026-08-22T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 312000,
+            "ephemeral_5m_input_tokens": 676000
+          },
+          "cache_read_input_tokens": 2080000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 364000,
+          "server_tool_use": {
+            "web_search_requests": 40
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 811500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-22T00:00:00Z",
+      "ending_at": "2026-08-23T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 312000,
+            "ephemeral_5m_input_tokens": 676000
+          },
+          "cache_read_input_tokens": 2080000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 364000,
+          "server_tool_use": {
+            "web_search_requests": 40
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 813000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-23T00:00:00Z",
+      "ending_at": "2026-08-24T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 312000,
+            "ephemeral_5m_input_tokens": 676000
+          },
+          "cache_read_input_tokens": 2080000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 364000,
+          "server_tool_use": {
+            "web_search_requests": 40
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 814500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-24T00:00:00Z",
+      "ending_at": "2026-08-25T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 312000,
+            "ephemeral_5m_input_tokens": 676000
+          },
+          "cache_read_input_tokens": 2080000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 364000,
+          "server_tool_use": {
+            "web_search_requests": 40
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 816000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-25T00:00:00Z",
+      "ending_at": "2026-08-26T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 312000,
+            "ephemeral_5m_input_tokens": 676000
+          },
+          "cache_read_input_tokens": 2080000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 364000,
+          "server_tool_use": {
+            "web_search_requests": 40
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 817500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-26T00:00:00Z",
+      "ending_at": "2026-08-27T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 312000,
+            "ephemeral_5m_input_tokens": 676000
+          },
+          "cache_read_input_tokens": 2080000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 364000,
+          "server_tool_use": {
+            "web_search_requests": 40
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 819000,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
+          "workspace_id": null
+        }
+      ]
+    },
+    {
+      "starting_at": "2026-08-27T00:00:00Z",
+      "ending_at": "2026-08-28T00:00:00Z",
+      "results": [
+        {
+          "account_id": null,
+          "api_key_id": "apikey_01Rj2N8SVvo6BePZj99NhmiT",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 312000,
+            "ephemeral_5m_input_tokens": 676000
+          },
+          "cache_read_input_tokens": 2080000,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-opus-4-6",
+          "output_tokens": 364000,
+          "server_tool_use": {
+            "web_search_requests": 40
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 820500,
+          "workspace_id": "wrkspc_01JwQvzr7rXLA5AGx3HKfFUJ"
+        },
+        {
+          "account_id": null,
+          "api_key_id": "apikey_02Kt9PqRSuu1XmZa22LqQrWs",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_read_input_tokens": 0,
+          "context_window": null,
+          "inference_geo": null,
+          "model": "claude-sonnet-4-6",
+          "output_tokens": 48000,
+          "server_tool_use": {
+            "web_search_requests": 0
+          },
+          "service_account_id": null,
+          "service_tier": null,
+          "uncached_input_tokens": 700000,
           "workspace_id": null
         }
       ]

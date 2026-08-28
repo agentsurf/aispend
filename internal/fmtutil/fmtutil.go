@@ -104,3 +104,96 @@ func group(n int64) string {
 	}
 	return b.String()
 }
+
+// sparkBlocks are the eight block-drawing heights, low to high.
+var sparkBlocks = []rune("▁▂▃▄▅▆▇█")
+
+// sparkASCII is the fallback for terminals that cannot render them. It ships in
+// the same function as the real thing rather than being added later, because a
+// fallback written afterwards is a fallback nobody tests.
+var sparkASCII = []rune(" .:-=+*#")
+
+// Sparkline renders a series as a single line of eight-level bars.
+//
+// The scale runs from zero, not from the minimum: scaling to the range makes a
+// flat series with a rounding wobble look like a mountain, which is precisely
+// the false alarm a spend report must not raise.
+func Sparkline(values []int64, utf8 bool) string {
+	blocks := sparkBlocks
+	if !utf8 {
+		blocks = sparkASCII
+	}
+	if len(values) == 0 {
+		return ""
+	}
+
+	var max int64
+	for _, v := range values {
+		if v > max {
+			max = v
+		}
+	}
+
+	out := make([]rune, len(values))
+	for i, v := range values {
+		switch {
+		case max == 0:
+			// Every day zero is a real shape, and it is flat.
+			out[i] = blocks[0]
+		case v <= 0:
+			out[i] = blocks[0]
+		default:
+			// Anything non-zero gets at least the first visible level, so a
+			// small but real day never disappears into the baseline.
+			idx := (v*int64(len(blocks)-1) + max - 1) / max
+			if idx < 1 {
+				idx = 1
+			}
+			out[i] = blocks[idx]
+		}
+	}
+	return string(out)
+}
+
+// Delta renders a change against a prior window: signed, with the magnitude
+// paired to nothing else, because the window it compares against is named by
+// the caller alongside it.
+//
+// A change of less than five percent is noise in a spend report, and the caller
+// is told so it can render it muted rather than shouted.
+func Delta(current, prior int64, utf8 bool) (text string, noise bool) {
+	if prior == 0 {
+		if current == 0 {
+			return "", true
+		}
+		// Growth from nothing is not a percentage. Saying "new" is honest;
+		// "+∞%" or "+100%" would both be inventions.
+		return "new", false
+	}
+
+	pct := ((current - prior) * 100) / prior
+	noise = pct > -5 && pct < 5
+
+	switch {
+	case pct > 0:
+		return up(utf8) + fmt.Sprintf(" %d%%", pct), noise
+	case pct < 0:
+		return down(utf8) + fmt.Sprintf(" %d%%", -pct), noise
+	default:
+		return "flat", true
+	}
+}
+
+func up(utf8 bool) string {
+	if utf8 {
+		return "▲"
+	}
+	return "+"
+}
+
+func down(utf8 bool) string {
+	if utf8 {
+		return "▼"
+	}
+	return "-"
+}

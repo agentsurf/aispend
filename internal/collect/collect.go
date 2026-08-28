@@ -84,8 +84,9 @@ type Registry map[string]Collector
 // directory, or a test server, with no knowledge of which.
 func New(client *http.Client) Registry {
 	return Registry{
-		"openai":    &openAI{http: client, limiter: limiterFor("openai")},
-		"anthropic": &anthropic{http: client, limiter: limiterFor("anthropic")},
+		"openai":     &openAI{http: client, limiter: limiterFor("openai")},
+		"anthropic":  &anthropic{http: client, limiter: limiterFor("anthropic")},
+		"openrouter": &openRouter{http: client, limiter: limiterFor("openrouter")},
 	}
 }
 

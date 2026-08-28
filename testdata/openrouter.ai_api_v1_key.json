@@ -1,0 +1,8 @@
+{
+  "data": {
+    "label": "acme-prod",
+    "usage": 84.21,
+    "limit": null,
+    "is_free_tier": false
+  }
+}

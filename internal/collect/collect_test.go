@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prabhuvmk/aispend/internal/catalog"
 	"github.com/prabhuvmk/aispend/internal/cred"
 	"github.com/prabhuvmk/aispend/internal/egress"
 	"github.com/prabhuvmk/aispend/internal/fact"
@@ -496,16 +497,13 @@ func TestUnimplementedIsDistinguishableFromAFailure(t *testing.T) {
 	}
 }
 
-// A catalog vendor with no collector must still appear in the registry's view
-// of the world as absent, not as a vendor with no spend.
-func TestRegistryOmitsVendorsWithoutCollectors(t *testing.T) {
+// Every catalog vendor a build claims to support must have a collector, or a
+// connected credential would produce silence rather than data.
+func TestEveryRegisteredVendorIsInTheCatalog(t *testing.T) {
 	r := New(http.DefaultClient)
-	if _, ok := r.Get("openrouter"); ok {
-		t.Error("openrouter has a collector; update this test when it lands")
-	}
 	for _, v := range r.Vendors() {
-		if v == "openrouter" {
-			t.Error("Vendors() lists a vendor with no collector")
+		if _, ok := catalog.Get(v); !ok {
+			t.Errorf("registry has %q, which is not in the catalog", v)
 		}
 	}
 }
@@ -791,5 +789,81 @@ func TestAnthropicCapsTheLimitAtTheVendorMaximum(t *testing.T) {
 	if query.Get("limit") != strconv.Itoa(anthropicMaxBuckets) {
 		t.Errorf("limit = %q for a 90-day window, want the capped %d",
 			query.Get("limit"), anthropicMaxBuckets)
+	}
+}
+
+// OpenRouter is the only v1 vendor that reports money per model directly, so
+// its facts are vendor-reported and the price book is never consulted for them.
+// That makes it the best check on the other two: where its own figure and a
+// computed one disagree, the price book is what is wrong.
+func TestOpenRouterReportsVendorCost(t *testing.T) {
+	client, sent := serve(t, 200, `{"data":[
+		{"date":"2026-08-27","model":"anthropic/claude-sonnet-4.6","usage":1.82,
+		 "requests":420,"prompt_tokens":210000,"completion_tokens":24000,
+		 "reasoning_tokens":3100,"api_key_id":"sk-or-v1-c118"}]}`)
+
+	var f fact.Fact
+	_, err := (&openRouter{http: client, limiter: newLimiter(1000)}).Collect(
+		context.Background(), cred.New("openrouter", cred.SourceEnv, "K", testKey),
+		window(t, "1d"), "", EmitterFunc(func(got fact.Fact) error { f = got; return nil }))
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+
+	if f.AmountBasis != fact.BasisVendorReported {
+		t.Errorf("AmountBasis = %q, want vendor_reported", f.AmountBasis)
+	}
+	if f.AmountMicros != 1_820_000 {
+		t.Errorf("AmountMicros = %d, want 1820000", f.AmountMicros)
+	}
+	// Reasoning tokens are output tokens; dropping them would understate usage.
+	if f.OutputUnits != 24000+3100 {
+		t.Errorf("OutputUnits = %d, want completion + reasoning", f.OutputUnits)
+	}
+	if sent.Get("Authorization") != "Bearer "+testKey {
+		t.Errorf("Authorization = %q", sent.Get("Authorization"))
+	}
+}
+
+// The only place a float touches money, and it ends there. Rounding half away
+// from zero, so a column of figures still reconciles.
+func TestUSDToMicros(t *testing.T) {
+	cases := map[float64]int64{
+		0: 0, 1: 1_000_000, 1.82: 1_820_000, 0.0001: 100,
+		0.0000005: 1, // rounds up rather than vanishing
+		-1.82:     -1_820_000,
+		84.21:     84_210_000,
+	}
+	for in, want := range cases {
+		if got := usdToMicros(in); got != want {
+			t.Errorf("usdToMicros(%v) = %d, want %d", in, got, want)
+		}
+	}
+}
+
+func TestOpenRouterVerify(t *testing.T) {
+	client, _ := serve(t, 200, `{"data":{"label":"acme-prod","usage":84.21,"limit":null,"is_free_tier":false}}`)
+
+	info, err := (&openRouter{http: client, limiter: newLimiter(1000)}).Verify(
+		context.Background(), cred.New("openrouter", cred.SourceEnv, "K", testKey))
+	if err != nil {
+		t.Fatalf("Verify: %v", err)
+	}
+	if info.AccountRef != "acme-prod" {
+		t.Errorf("AccountRef = %q", info.AccountRef)
+	}
+}
+
+func TestAllThreeVendorsAreRegistered(t *testing.T) {
+	r := New(http.DefaultClient)
+	want := []string{"openai", "anthropic", "openrouter"}
+	got := r.Vendors()
+	if len(got) != len(want) {
+		t.Fatalf("registry has %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("position %d = %s, want %s (catalog order)", i, got[i], want[i])
+		}
 	}
 }

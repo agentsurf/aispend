@@ -73,3 +73,85 @@ func TestThousandsSeparators(t *testing.T) {
 		}
 	}
 }
+
+// Scaling from zero, not from the minimum: scaling to the range makes a flat
+// series with a rounding wobble look like a mountain, which is exactly the
+// false alarm a spend report must not raise.
+func TestSparklineScalesFromZero(t *testing.T) {
+	flat := Sparkline([]int64{100, 101, 100, 99, 100}, true)
+	for _, r := range flat {
+		if r != []rune(flat)[0] {
+			t.Errorf("a nearly-flat series rendered as varied: %q", flat)
+			break
+		}
+	}
+
+	real := Sparkline([]int64{10, 50, 100}, true)
+	if []rune(real)[0] == []rune(real)[2] {
+		t.Errorf("a genuinely rising series rendered flat: %q", real)
+	}
+}
+
+// A small but real day must never disappear into the baseline: "almost nothing"
+// and "nothing" are different facts.
+func TestSparklineKeepsSmallValuesVisible(t *testing.T) {
+	s := []rune(Sparkline([]int64{1, 1000000}, true))
+	zero := []rune(Sparkline([]int64{0, 1000000}, true))
+	if s[0] == zero[0] {
+		t.Errorf("a value of 1 rendered the same as 0: %q vs %q", string(s), string(zero))
+	}
+}
+
+func TestSparklineAllZeroIsFlat(t *testing.T) {
+	if got := Sparkline([]int64{0, 0, 0}, true); got != "▁▁▁" {
+		t.Errorf("Sparkline(zeros) = %q, want a flat baseline", got)
+	}
+}
+
+func TestSparklineASCIIFallback(t *testing.T) {
+	got := Sparkline([]int64{1, 50, 100}, false)
+	for _, r := range got {
+		if r > 127 {
+			t.Errorf("ASCII sparkline contains %q", r)
+		}
+	}
+	if len(got) != 3 {
+		t.Errorf("Sparkline gave %d cells for 3 values", len(got))
+	}
+}
+
+func TestDelta(t *testing.T) {
+	cases := []struct {
+		current, prior int64
+		want           string
+		noise          bool
+	}{
+		{134, 100, "▲ 34%", false},
+		{66, 100, "▼ 34%", false},
+		{102, 100, "▲ 2%", true}, // under 5% is noise
+		{98, 100, "▼ 2%", true},
+		{100, 100, "flat", true},
+		{50, 0, "new", false}, // growth from nothing is not a percentage
+		{0, 0, "", true},
+	}
+	for _, c := range cases {
+		got, noise := Delta(c.current, c.prior, true)
+		if got != c.want {
+			t.Errorf("Delta(%d, %d) = %q, want %q", c.current, c.prior, got, c.want)
+		}
+		if noise != c.noise {
+			t.Errorf("Delta(%d, %d) noise = %v, want %v", c.current, c.prior, noise, c.noise)
+		}
+	}
+}
+
+func TestDeltaASCIIFallback(t *testing.T) {
+	for _, pair := range [][2]int64{{134, 100}, {66, 100}} {
+		got, _ := Delta(pair[0], pair[1], false)
+		for _, r := range got {
+			if r > 127 {
+				t.Errorf("ASCII delta %q contains %q", got, r)
+			}
+		}
+	}
+}

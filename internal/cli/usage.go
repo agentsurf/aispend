@@ -67,7 +67,8 @@ func renderUsage(w io.Writer, caps ui.Caps, db *store.DB, dest sink.Sink, r time
 		return err
 	}
 
-	fmt.Fprintf(w, "\n  AI SPEND %s %s %s %s\n\n", caps.Sep(), r.Label, caps.Sep(), r.String())
+	fmt.Fprintf(w, "\n  AI SPEND %s %s %s %s\n\n",
+		caps.Sep(), r.Label, caps.Sep(), rangeText(r, caps))
 
 	if t.Facts == 0 {
 		fmt.Fprintf(w, "  %s\n\n", caps.Dim(
@@ -80,6 +81,21 @@ func renderUsage(w io.Writer, caps ui.Caps, db *store.DB, dest sink.Sink, r time
 	// never $0 — a tool that renders "we couldn't see this" as zero has
 	// silently lied, and one occurrence found by a customer costs the account.
 	fmt.Fprintf(w, "  %-40s %14s\n", "Total", fmtutil.MoneyOrUnknown(t.Micros, t.Priced > 0))
+
+	// A change is never reported without naming what it is a change from.
+	if prior, err := db.Totals(store.Filter{
+		From: r.PriorFrom(), To: r.PriorTo(), Vendor: flagVendor,
+	}); err == nil && prior.Priced > 0 && t.Priced > 0 {
+		if text, noise := fmtutil.Delta(t.Micros, prior.Micros, caps.UTF8); text != "" {
+			line := fmt.Sprintf("%s vs prior %d days", text, r.Days())
+			if noise {
+				// Under five percent is noise, not signal, and is rendered as
+				// such rather than given the same weight as a real move.
+				line = caps.Dim(line)
+			}
+			fmt.Fprintf(w, "  %-40s %14s\n", "", line)
+		}
+	}
 
 	if t.Priced < t.Facts {
 		fmt.Fprintf(w, "  %s\n", caps.Dim(fmt.Sprintf(
@@ -137,12 +153,13 @@ func writeGroup(w io.Writer, caps ui.Caps, db *store.DB, by store.GroupBy,
 		shown, rest = groups[:maxRows], groups[maxRows:]
 	}
 
-	rows := make([][3]string, 0, len(shown)+2)
+	rows := make([][4]string, 0, len(shown)+2)
 	for _, g := range shown {
-		rows = append(rows, [3]string{
+		rows = append(rows, [4]string{
 			labelFor(by, g.Key, caps),
 			fmtutil.MoneyOrUnknown(g.Micros, g.Priced > 0),
 			sharePct(g.Micros, t.Micros, g.Priced > 0 && t.Micros > 0),
+			trend(db, by, g.Key, filter, caps),
 		})
 	}
 
@@ -153,10 +170,11 @@ func writeGroup(w io.Writer, caps ui.Caps, db *store.DB, by store.GroupBy,
 			micros += g.Micros
 			priced += g.Priced
 		}
-		rows = append(rows, [3]string{
+		rows = append(rows, [4]string{
 			caps.Dim(fmt.Sprintf("…and %d more", len(rest))),
 			fmtutil.MoneyOrUnknown(micros, priced > 0),
 			sharePct(micros, t.Micros, priced > 0 && t.Micros > 0),
+			"",
 		})
 	}
 
@@ -172,7 +190,8 @@ func writeGroup(w io.Writer, caps ui.Caps, db *store.DB, by store.GroupBy,
 
 	for _, row := range rows {
 		pad := width - len([]rune(stripANSI(row[0])))
-		fmt.Fprintf(w, "  %s%s  %12s  %7s\n", row[0], strings.Repeat(" ", pad), row[1], row[2])
+		fmt.Fprintf(w, "  %s%s  %12s  %7s   %s\n",
+			row[0], strings.Repeat(" ", pad), row[1], row[2], caps.Dim(row[3]))
 	}
 
 	// The totals row is what makes the column checkable by eye rather than
@@ -181,6 +200,40 @@ func writeGroup(w io.Writer, caps ui.Caps, db *store.DB, by store.GroupBy,
 	fmt.Fprintf(w, "  %s  %12s\n", strings.Repeat(" ", width),
 		fmtutil.MoneyOrUnknown(t.Micros, t.Priced > 0))
 	return nil
+}
+
+// trend renders a per-row sparkline over the last seven days of the window.
+//
+// Only for vendor rows: a sparkline per model or per key would be a wall of
+// noise, and the vendor is the level at which a change is actionable.
+func trend(db *store.DB, by store.GroupBy, key string, filter store.Filter, caps ui.Caps) string {
+	if by != store.ByVendor {
+		return ""
+	}
+
+	end, err := time.Parse("2006-01-02", filter.To)
+	if err != nil {
+		return ""
+	}
+	start := end.AddDate(0, 0, -6)
+	if start.Format("2006-01-02") < filter.From {
+		start, _ = time.Parse("2006-01-02", filter.From)
+	}
+
+	daily, err := db.DailyTotals(store.Filter{
+		From: start.Format("2006-01-02"), To: filter.To, Vendor: key,
+	})
+	if err != nil {
+		return ""
+	}
+
+	// A dense series: days with no data are zeros, not gaps. A gap silently
+	// redrawn as a shorter line would misreport the shape.
+	var values []int64
+	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
+		values = append(values, daily[d.Format("2006-01-02")])
+	}
+	return fmtutil.Sparkline(values, caps.UTF8)
 }
 
 // labelFor renders a group key, showing an absent dimension as an em dash
@@ -266,6 +319,16 @@ func writeFooter(w io.Writer, caps ui.Caps, db *store.DB, filter store.Filter,
 	fmt.Fprintf(w, "  %-9s %s\n", "Privacy", caps.Dim(privacyLine(dest)))
 	fmt.Fprintf(w, "  %-9s %s\n", "Days", caps.Dim(daysLine(r, t)))
 	return nil
+}
+
+// rangeText renders the date range for terminals that cannot draw an en dash.
+// A header full of mojibake is a poor first impression in the one place a
+// stranger decides whether to keep reading.
+func rangeText(r timerange.Range, caps ui.Caps) string {
+	if caps.UTF8 {
+		return r.String()
+	}
+	return strings.ReplaceAll(r.String(), "–", "-")
 }
 
 // validateFlags checks the display flags before any output is produced.

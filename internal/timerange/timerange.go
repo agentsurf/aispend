@@ -76,6 +76,17 @@ func (r Range) String() string {
 	return fmt.Sprintf("%s – %s", r.From.Format("2 Jan 2006"), r.To.Format("2 Jan 2006"))
 }
 
+// PriorFrom and PriorTo describe the window immediately before this one, of the
+// same length. Every delta names the window it compares against, so the reader
+// is never left guessing what "up 34%" is relative to.
+func (r Range) PriorFrom() string {
+	return r.From.AddDate(0, 0, -r.Days()).Format("2006-01-02")
+}
+
+func (r Range) PriorTo() string {
+	return r.From.AddDate(0, 0, -1).Format("2006-01-02")
+}
+
 // Each calls fn once per day in the window, oldest first.
 func (r Range) Each(fn func(day string)) {
 	for d := r.From; !d.After(r.To); d = d.AddDate(0, 0, 1) {

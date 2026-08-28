@@ -35,8 +35,10 @@ rewrite of history.
 - [x] **Run 15** — Anthropic collector, schema v2 for cache-write tokens
 - [x] **Run 16** — effective-dated price book, `amount_basis`, Basis footer
 - [x] **Run 17** — `BY MODEL` and every `--by` dimension
-- [ ] **Run 18** — sparklines, deltas, ASCII fallback  ← next
-- [ ] Runs 19–26 below
+- [x] **Run 18** — sparklines, prior-window deltas, ASCII fallback
+- [x] **Run 19** — OpenRouter collector (the only vendor-reported cost in v1)
+- [ ] **Run 20** — `owners.csv` and `--by team`  ← next
+- [ ] Runs 21–26 below
 
 ---
 
@@ -999,7 +1001,7 @@ rather than by cost, because a time series sorted by size is not a time series.
 
 ---
 
-## Run 18 — sparklines and deltas
+## Run 18 — sparklines and deltas ✅
 
 **Build:** 7-day sparkline per vendor, prior-window delta with the window named, deltas under 5% muted as
 noise, and the ASCII fallback **in the same run** — or it gets forgotten.
@@ -1028,7 +1030,7 @@ the ASCII fallback ships in the same run rather than being deferred and forgotte
 
 ---
 
-## Run 19 — OpenRouter collector
+## Run 19 — OpenRouter collector ✅
 
 **Needs:** an OpenRouter key. The easiest of the three, with the best granularity available anywhere.
 
