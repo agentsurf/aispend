@@ -391,3 +391,138 @@ func TestCacheWriteUnitsAreStoredSeparately(t *testing.T) {
 		t.Errorf("got in=%d read=%d write=%d; the three classes were not kept apart", in, read, write)
 	}
 }
+
+func seedGrouped(t *testing.T, db *DB) {
+	t.Helper()
+	rows := []struct {
+		id, vendor, day, ws, key, model string
+		micros                          int64
+	}{
+		{"a", "anthropic", "2026-08-27", "wrkspc_1", "apikey_1", "claude-opus-4-6", 11_790_000},
+		{"b", "anthropic", "2026-08-27", "", "apikey_2", "claude-sonnet-4-6", 3_880_000},
+		{"c", "openai", "2026-08-26", "proj_a", "key_1", "gpt-5.2", 2_380_000},
+		{"d", "openai", "2026-08-26", "proj_b", "key_2", "gpt-5.2-mini", 40_000},
+	}
+	for _, r := range rows {
+		if _, err := db.SQL().Exec(`
+			INSERT INTO usage_fact (fact_id, vendor, day, workspace_ref, principal_ref, model_ref,
+				input_units, unit_kind, amount_micros, amount_basis, revision, collected_at)
+			VALUES (?,?,?,?,?,?,1000,'token',?, 'computed', 1, 0)`,
+			r.id, r.vendor, r.day, r.ws, r.key, r.model, r.micros); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// The arithmetic a sceptical reader checks first: every way of slicing the same
+// window must add up to the same number. If they disagree, the grouping is
+// dropping or duplicating rows.
+func TestEveryGroupingReconcilesToTheSameTotal(t *testing.T) {
+	db, _ := open(t)
+	seedGrouped(t, db)
+	f := Filter{From: "2026-08-01", To: "2026-08-31"}
+
+	totals, err := db.Totals(f)
+	if err != nil {
+		t.Fatalf("Totals: %v", err)
+	}
+
+	for _, by := range []GroupBy{ByVendor, ByModel, ByKey, ByProject, ByDay} {
+		groups, err := db.GroupBy(by, f)
+		if err != nil {
+			t.Fatalf("GroupBy(%s): %v", by, err)
+		}
+		var sum int64
+		var facts int
+		for _, g := range groups {
+			sum += g.Micros
+			facts += g.Facts
+		}
+		if sum != totals.Micros {
+			t.Errorf("--by %s sums to %d, but the total is %d", by, sum, totals.Micros)
+		}
+		if facts != totals.Facts {
+			t.Errorf("--by %s covers %d facts, but the window holds %d", by, facts, totals.Facts)
+		}
+	}
+}
+
+// Biggest line first, every time — except a day breakdown, which is a time
+// series. A time series sorted by size is not a time series.
+func TestGroupOrdering(t *testing.T) {
+	db, _ := open(t)
+	seedGrouped(t, db)
+	f := Filter{From: "2026-08-01", To: "2026-08-31"}
+
+	byModel, _ := db.GroupBy(ByModel, f)
+	for i := 1; i < len(byModel); i++ {
+		if byModel[i].Micros > byModel[i-1].Micros {
+			t.Errorf("model rows are not descending by spend: %+v", byModel)
+			break
+		}
+	}
+
+	byDay, _ := db.GroupBy(ByDay, f)
+	for i := 1; i < len(byDay); i++ {
+		if byDay[i].Key < byDay[i-1].Key {
+			t.Errorf("day rows are not chronological: %+v", byDay)
+			break
+		}
+	}
+}
+
+func TestGroupByRejectsAnUnknownDimension(t *testing.T) {
+	db, _ := open(t)
+	_, err := db.GroupBy(GroupBy("nonsense"), Filter{From: "2026-08-01", To: "2026-08-31"})
+	if err == nil {
+		t.Fatal("an unknown dimension was accepted")
+	}
+	for _, name := range GroupByNames() {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("the error does not list %q as a valid value: %v", name, err)
+		}
+	}
+}
+
+func TestFilterByVendor(t *testing.T) {
+	db, _ := open(t)
+	seedGrouped(t, db)
+
+	all, _ := db.Totals(Filter{From: "2026-08-01", To: "2026-08-31"})
+	one, _ := db.Totals(Filter{From: "2026-08-01", To: "2026-08-31", Vendor: "openai"})
+
+	if one.Micros >= all.Micros {
+		t.Errorf("--vendor did not narrow the total: %d vs %d", one.Micros, all.Micros)
+	}
+	if one.Micros != 2_380_000+40_000 {
+		t.Errorf("openai total = %d, want 2420000", one.Micros)
+	}
+}
+
+func TestBasisBreakdownSeparatesTheClaims(t *testing.T) {
+	db, _ := open(t)
+	insertFact(t, db, "2026-08-27", 1, 8_204_000_000, "vendor_reported")
+	if _, err := db.SQL().Exec(`
+		INSERT INTO usage_fact (fact_id, vendor, day, model_ref, unit_kind,
+			amount_micros, amount_basis, revision, collected_at)
+		VALUES ('other','openai','2026-08-26','m2','token',3_266_000_000,'computed',1,0)`); err != nil {
+		t.Fatal(err)
+	}
+
+	splits, err := db.BasisBreakdown(Filter{From: "2026-08-01", To: "2026-08-31"})
+	if err != nil {
+		t.Fatalf("BasisBreakdown: %v", err)
+	}
+	if len(splits) != 2 {
+		t.Fatalf("got %d bases, want 2: %+v", len(splits), splits)
+	}
+	// Largest first, and the two must sum to the total.
+	if splits[0].Basis != "vendor_reported" || splits[0].Micros != 8_204_000_000 {
+		t.Errorf("first split = %+v", splits[0])
+	}
+
+	totals, _ := db.Totals(Filter{From: "2026-08-01", To: "2026-08-31"})
+	if splits[0].Micros+splits[1].Micros != totals.Micros {
+		t.Errorf("the basis split does not reconcile to the total")
+	}
+}

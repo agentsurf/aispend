@@ -30,6 +30,7 @@ var (
 	flagKeepRaw bool
 	flagDetail  bool
 	flagVendor  string
+	flagBy      string
 )
 
 func newScanCmd() *cobra.Command {

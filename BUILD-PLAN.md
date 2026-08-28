@@ -33,8 +33,10 @@ rewrite of history.
 - [x] **Run 13** — `fmtutil`, `usage`, the headline number, and the generated footer
 - [x] **Run 14** — `BY VENDOR` table, grouping queries, `--vendor`, `--detail`
 - [x] **Run 15** — Anthropic collector, schema v2 for cache-write tokens
-- [ ] **Run 16** — price book, `amount_basis`, Basis footer  ← next
-- [ ] Runs 17–26 below
+- [x] **Run 16** — effective-dated price book, `amount_basis`, Basis footer
+- [x] **Run 17** — `BY MODEL` and every `--by` dimension
+- [ ] **Run 18** — sparklines, deltas, ASCII fallback  ← next
+- [ ] Runs 19–26 below
 
 ---
 
@@ -927,7 +929,7 @@ design appears now that there is more than one thing to wait for.
 
 ---
 
-## Run 16 — price book and `amount_basis`
+## Run 16 — price book and `amount_basis` ✅
 
 **Build:** embedded effective-dated `pricebook.json`, consulted **only** where the vendor doesn't report
 cost. Allocation of coarse vendor cost down to model level, `price_version` stamped on computed facts,
@@ -959,7 +961,7 @@ discards it. An unknown model produces a visible warning rather than a silent ze
 
 ---
 
-## Run 17 — `BY MODEL` and the rest of `--by`
+## Run 17 — `BY MODEL` and the rest of `--by` ✅
 
 **Build:** the model table, plus the remaining dimensions from design §6.3 — `--by key`, `--by project`,
 `--by day`. They share one grouping path, so building them together is cheaper than building one and

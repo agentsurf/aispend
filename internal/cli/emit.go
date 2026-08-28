@@ -3,9 +3,11 @@ package cli
 import (
 	"context"
 	"io"
+	"sort"
 
 	"github.com/prabhuvmk/aispend/internal/collect"
 	"github.com/prabhuvmk/aispend/internal/fact"
+	"github.com/prabhuvmk/aispend/internal/pricing"
 	"github.com/prabhuvmk/aispend/internal/sink"
 	"github.com/prabhuvmk/aispend/internal/store"
 	"github.com/prabhuvmk/aispend/internal/timerange"
@@ -15,13 +17,15 @@ import (
 // storeEmitter batches facts into a sink and records the resume cursor after
 // every page, so an interrupted backfill loses at most one page.
 type storeEmitter struct {
-	ctx     context.Context
-	batch   *sink.Batcher
-	db      *store.DB
-	vendor  string
-	window  timerange.Range
-	count   int
-	printer func(fact.Fact)
+	ctx      context.Context
+	batch    *sink.Batcher
+	db       *store.DB
+	vendor   string
+	window   timerange.Range
+	count    int
+	computed int
+	unpriced []string
+	printer  func(fact.Fact)
 }
 
 func newStoreEmitter(ctx context.Context, db *store.DB, s sink.Sink,
@@ -36,11 +40,39 @@ func newStoreEmitter(ctx context.Context, db *store.DB, s sink.Sink,
 }
 
 func (e *storeEmitter) Emit(f fact.Fact) error {
+	// Price on the way through, so what lands in the database is already
+	// attributed and every later view reads one consistent number. The price
+	// book never overwrites a vendor-reported amount.
+	if pricing.Apply(&f) {
+		e.computed++
+	} else if f.AmountBasis == fact.BasisUnknown && f.ModelRef != "" {
+		e.unpriced = append(e.unpriced, f.Vendor+" "+f.ModelRef)
+	}
+
 	e.count++
 	if e.printer != nil {
 		e.printer(f)
 	}
 	return e.batch.Add(e.ctx, f)
+}
+
+// Computed is how many facts this emitter priced from the price book.
+func (e *storeEmitter) Computed() int { return e.computed }
+
+// UnknownModels lists models the price book could not price. They are surfaced
+// as a warning rather than silently priced at zero, which would understate the
+// total by however much they cost.
+func (e *storeEmitter) UnknownModels() []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, m := range e.unpriced {
+		if !seen[m] {
+			seen[m] = true
+			out = append(out, m)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // PageDone flushes what has been read so far and records where to resume.

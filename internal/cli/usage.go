@@ -27,6 +27,12 @@ Run scan once to collect, then explore with usage as often as you like — every
 view is instant and costs nothing.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Validate before opening anything or writing a line: a bad flag
+			// that prints half a report first reads as a broken report rather
+			// than a typo.
+			if err := validateFlags(); err != nil {
+				return err
+			}
 			r, err := timerange.Parse(flagSince, time.Now())
 			if err != nil {
 				return err
@@ -47,6 +53,8 @@ view is instant and costs nothing.`,
 	cmd.Flags().StringVar(&flagSince, "since", "30d", "window to report on: 7d, 30d, 90d, or a date (YYYY-MM-DD)")
 	cmd.Flags().BoolVar(&flagDetail, "detail", false, "show every row, with no truncation")
 	cmd.Flags().StringVar(&flagVendor, "vendor", "", "report on one vendor only")
+	cmd.Flags().StringVar(&flagBy, "by", "",
+		"break spend down by one dimension: "+strings.Join(store.GroupByNames(), ", "))
 	return cmd
 }
 
@@ -79,12 +87,28 @@ func renderUsage(w io.Writer, caps ui.Caps, db *store.DB, dest sink.Sink, r time
 			t.Facts-t.Priced, t.Facts, caps.Sep())))
 	}
 
-	if err := writeGroup(w, caps, db, store.ByVendor, "BY VENDOR", filter, t); err != nil {
-		return err
+	views := []struct {
+		by    store.GroupBy
+		title string
+	}{
+		{store.ByVendor, "BY VENDOR"},
+		{store.ByModel, "BY MODEL"},
+	}
+	if flagBy != "" {
+		views = []struct {
+			by    store.GroupBy
+			title string
+		}{{store.GroupBy(flagBy), "BY " + strings.ToUpper(flagBy)}}
+	}
+
+	for _, v := range views {
+		if err := writeGroup(w, caps, db, v.by, v.title, filter, t); err != nil {
+			return err
+		}
 	}
 
 	fmt.Fprintln(w)
-	return writeFooter(w, caps, dest, r, t)
+	return writeFooter(w, caps, db, filter, dest, r, t)
 }
 
 // maxRows is how many rows a summary view shows before collapsing the rest into
@@ -177,6 +201,11 @@ func labelFor(by store.GroupBy, key string, caps ui.Caps) string {
 			return v.Name
 		}
 	}
+	if by == store.ByKey || by == store.ByProject {
+		// Vendor identifiers are opaque and long. The tail is what
+		// distinguishes two of them at a glance, so that is what is kept.
+		return shortRef(key)
+	}
 	return key
 }
 
@@ -220,16 +249,92 @@ func stripANSI(s string) string {
 // once, ship a build where scan quietly phones home, and you lose the only
 // thing that makes a one-person company credible enough to be handed an admin
 // key.
-func writeFooter(w io.Writer, caps ui.Caps, dest sink.Sink, r timerange.Range, t store.Totals) error {
+func writeFooter(w io.Writer, caps ui.Caps, db *store.DB, filter store.Filter,
+	dest sink.Sink, r timerange.Range, t store.Totals) error {
 	line := strings.Repeat("─", 66)
 	if !caps.UTF8 {
 		line = strings.Repeat("-", 66)
 	}
 	fmt.Fprintf(w, "  %s\n", caps.Dim(line))
 
+	if basis, err := basisLine(db, filter, caps); err != nil {
+		return err
+	} else if basis != "" {
+		fmt.Fprintf(w, "  %-9s %s\n", "Basis", caps.Dim(basis))
+	}
+
 	fmt.Fprintf(w, "  %-9s %s\n", "Privacy", caps.Dim(privacyLine(dest)))
 	fmt.Fprintf(w, "  %-9s %s\n", "Days", caps.Dim(daysLine(r, t)))
 	return nil
+}
+
+// validateFlags checks the display flags before any output is produced.
+func validateFlags() error {
+	if flagBy != "" && !store.GroupBy(flagBy).Valid() {
+		return fmt.Errorf("unknown --by %q\n\n  Valid values: %s",
+			flagBy, strings.Join(store.GroupByNames(), ", "))
+	}
+	if flagVendor != "" {
+		if _, ok := catalog.Get(flagVendor); !ok {
+			var names []string
+			for _, v := range catalog.Vendors() {
+				names = append(names, v.ID)
+			}
+			return fmt.Errorf("unknown --vendor %q\n\n  Valid values: %s",
+				flagVendor, strings.Join(names, ", "))
+		}
+	}
+	return nil
+}
+
+// basisLine says where the money figure came from.
+//
+// This single line is the difference between a report a finance person forwards
+// and one they quietly discard: "the vendor told us this" and "we worked this
+// out from a price list" are different claims, and blurring them costs the
+// reader's trust the first time they check.
+func basisLine(db *store.DB, filter store.Filter, caps ui.Caps) (string, error) {
+	splits, err := db.BasisBreakdown(filter)
+	if err != nil {
+		return "", err
+	}
+
+	label := map[string]string{
+		"vendor_reported": "vendor-reported",
+		"allocated":       "allocated to model",
+		"computed":        "computed from the price book",
+		"unknown":         "not priced",
+	}
+
+	var parts []string
+	for _, s := range splits {
+		if s.Basis == "unknown" {
+			parts = append(parts, fmt.Sprintf("%d %s %s",
+				s.Facts, plural(s.Facts, "fact", "facts"), label[s.Basis]))
+			continue
+		}
+		name := label[s.Basis]
+		if name == "" {
+			name = s.Basis
+		}
+		parts = append(parts, fmtutil.Money(s.Micros)+" "+name)
+	}
+	if len(parts) == 0 {
+		return "", nil
+	}
+
+	line := strings.Join(parts, " "+caps.Sep()+" ")
+
+	if versions, err := db.PriceVersions(filter); err == nil && len(versions) > 0 {
+		line += " (price book " + strings.Join(versions, ", ") + ")"
+	}
+
+	// Naming what could not be priced is the other half of the claim: a total
+	// that silently omits a model is worse than one that says what it missed.
+	if unpriced, err := db.UnpricedModels(filter); err == nil && len(unpriced) > 0 {
+		line += "\n            " + caps.Warn() + " no price for " + strings.Join(unpriced, ", ")
+	}
+	return line, nil
 }
 
 // privacyLine describes where collected data went and which hosts were reached.

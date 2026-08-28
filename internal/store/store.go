@@ -427,3 +427,80 @@ func (d *DB) DailyTotals(f Filter) (map[string]int64, error) {
 	}
 	return out, rows.Err()
 }
+
+// BasisSplit is how much of a total each attribution basis accounts for.
+//
+// This is the trust property from the design made visible: "the vendor told us
+// this cost $8,204" and "we computed $3,266 from our price book" are different
+// claims, and a report that blurs them is one a careful reader stops believing.
+type BasisSplit struct {
+	Basis  string
+	Micros int64
+	Facts  int
+}
+
+// BasisBreakdown returns the split, largest first.
+func (d *DB) BasisBreakdown(f Filter) ([]BasisSplit, error) {
+	rows, err := d.sql.Query(latestCTE+`
+		SELECT amount_basis, COALESCE(sum(amount_micros), 0), count(*)
+		FROM latest`+vendorClause+`
+		GROUP BY amount_basis ORDER BY sum(amount_micros) DESC`, f.args()...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []BasisSplit
+	for rows.Next() {
+		var b BasisSplit
+		if err := rows.Scan(&b.Basis, &b.Micros, &b.Facts); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+// PriceVersions lists the price books that produced computed amounts in the
+// window, so the footer can name them.
+func (d *DB) PriceVersions(f Filter) ([]string, error) {
+	rows, err := d.sql.Query(latestCTE+`
+		SELECT DISTINCT price_version FROM latest`+vendorClause+`
+		AND price_version <> '' ORDER BY price_version`, f.args()...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// UnpricedModels lists models in the window carrying no cost, so the report can
+// name what is missing instead of quietly showing a smaller number.
+func (d *DB) UnpricedModels(f Filter) ([]string, error) {
+	rows, err := d.sql.Query(latestCTE+`
+		SELECT DISTINCT vendor || ' ' || model_ref FROM latest`+vendorClause+`
+		AND amount_basis = 'unknown' AND model_ref <> '' ORDER BY 1`, f.args()...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
